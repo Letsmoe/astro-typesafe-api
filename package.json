@@ -1,0 +1,29 @@
+{
+  "name": "astro-typed",
+  "type": "module",
+	"version": "0.0.1",
+  "files": [
+    "src/integration.ts",
+    "src/types.ts",
+    "src/runtime"
+  ],
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "exports": {
+    ".": "./src/integration.ts",
+    "./client": "./src/runtime/client.ts",
+    "./server": "./src/runtime/server.ts",
+    "./types": "./src/types.ts",
+    "./errors": "./src/errors.ts"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "astro": "^4.12.2",
+    "es-codec": "^0.5.0",
+    "globby": "^14.0.2",
+    "zod": "^3.23.8"
+  }
+}
