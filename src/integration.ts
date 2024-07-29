@@ -3,20 +3,22 @@ import url from "node:url"
 import path from "node:path"
 import { globby } from "globby"
 import type { AstroIntegration, AstroConfig, AstroIntegrationLogger } from "astro"
-
-export interface Options {}
+export interface Options {
+	generateOpenAPIDocument?: boolean,
+	openAPIDocumentPath?: string,
+}
 
 export default function (_?: Partial<Options>): AstroIntegration {
     let apiDir: URL
     let declarationFileUrl: URL
     return {
-        name: "astro-typed",
+        name: "astro-typesafe-api",
         hooks: {
             "astro:config:setup" ({ updateConfig, config, logger }) {
                 apiDir = new URL("pages/api", config.srcDir)
-                declarationFileUrl = new URL(".astro/typed.d.ts", config.root)
+                declarationFileUrl = new URL(".astro/astro-typesafe-api.d.ts", config.root)
                 updateConfig({ vite: { plugins: [{
-                    name: "astro-typed/typegen",
+                    name: "astro-typesafe-api/typegen",
                     enforce: "post",
                     async config() {
                         const filenames = await globby("**/*.{ts,mts}", { cwd: apiDir })
@@ -31,7 +33,7 @@ export default function (_?: Partial<Options>): AstroIntegration {
                         },
                         ssr: {
                             // this package is published as uncompiled typescript, which we need vite to process
-                            noExternal: ["astro-typed"]
+                            noExternal: ["astro-typesafe-api"]
                         }
                     }
                 })
@@ -53,7 +55,7 @@ async function generateTypes(filenames: string[], apiDir: URL, declarationFileUr
     const apiPath = url.fileURLToPath(apiDir)
     fs.mkdirSync(path.dirname(url.fileURLToPath(declarationFileUrl)), { recursive: true })
     let declaration = ``
-    declaration += `type CreateRouter<Routes> = import("astro-typed/types").CreateRouter<Routes>\n`
+    declaration += `type CreateRouter<Routes> = import("astro-typesafe-api/types").CreateRouter<Routes>\n`
     declaration += `\n`
     declaration += `declare namespace TypedAPI {\n`
     declaration += `    interface Client extends CreateRouter<[\n`

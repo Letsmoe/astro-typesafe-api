@@ -10,7 +10,7 @@ import {
 	TypedAPIError,
 } from "../errors.ts";
 import { paramsToData } from "./param-codec.ts";
-import type { TypedAPIContext } from "./server.ts";
+import { APIError, type TypedAPIContext } from "./server.ts";
 
 export function createApiRoute(
 	fetch: (input: unknown, content: TypedAPIContext) => unknown
@@ -27,7 +27,8 @@ export function createApiRoute(
 		// Make sure the client can accept the response format
 		if (
 			accept.includes("application/escodec") === false &&
-			accept.includes("application/json") === false
+			accept.includes("application/json") === false &&
+			accept.includes("*/*") === false
 		) {
 			throw new UnsupportedClient(request);
 		}
@@ -68,22 +69,24 @@ export function createApiRoute(
 		let output: any;
 		try {
 			output = await fetch(input, context);
-		} catch (error) {
-			if (error instanceof TypedAPIError) throw error;
-			const procedureFailed = new ProcedureFailed(error, url);
-			if (import.meta.env.DEV) {
-				// some errors are thrown intentionally
-				// until a full error handling api is implemented, manually return 500 responses
-				// to avoid dev overlay taking over the browser
-				console.error(procedureFailed);
-				return new Response(null, { status: 500 });
-			} else {
-				throw procedureFailed;
+		} catch (error: any) {
+			if (error instanceof APIError) {
+				return new Response(JSON.stringify({
+					status: error.status,
+					cause: error.cause,
+					details: error.details,
+					message: error.message,
+				}), {status: error.status});
 			}
-		}
+
+				return new Response(JSON.stringify({
+					cause: error.cause,
+					status: 500
+				}), {status: 500})
+			}
 
 		let outputBody;
-		if (accept.includes("application/json")) {
+		if (accept.includes("application/json") || accept.includes("*/*")) {
 			try {
 				outputBody = JSON.stringify(output);
 			} catch (error) {

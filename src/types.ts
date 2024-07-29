@@ -1,3 +1,4 @@
+import type { z } from "zod"
 import type { TypedAPIHandler } from "./runtime/server.ts"
 
 /***** ROUTER *****/
@@ -26,7 +27,7 @@ type ModuleProxy<EndpointModule, Params extends string> = {
 
 type MethodProxy<MethodExport, Params extends string, Method extends string> =
     MethodExport extends TypedAPIHandler<infer Input, infer Output>
-        ? Fetch_<Input, Output, Params, Method>
+        ? Fetch_<z.infer<Input>, z.infer<Output>, Params, Method>
         : TypedAPITypeError<"This export from the API Route was not a typed handler. Please make sure it was created using `defineApiRoute`.">
 
 type EndpointToObject<Endpoint extends string, ModuleProxy> =
@@ -79,7 +80,7 @@ interface FetchMP<Input, Output, Params extends string> {
     fetchRaw(input: Input, options: OptionsMP<Params>): Promise<Response>
 }
 
-interface Options extends Omit<RequestInit, "body" | "method"> {}
+export interface Options extends Omit<RequestInit, "body" | "method"> {}
 
 interface OptionsM extends Options, Required<Pick<RequestInit, "method">> {}
 

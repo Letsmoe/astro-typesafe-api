@@ -14,7 +14,7 @@
 <br />
 <div align="center">
   <a href="https://github.com/Letsmoe/astro-typesafe-api">
-    <img src="logo.png" alt="Logo" width="400" height="400">
+    <img src="logo.png" alt="Logo" width="auto" height="400">
   </a>
 
 
@@ -27,32 +27,35 @@
   </p>
 </div>
 
+>[!NOTE]
+> This package is a fork of [astro-typed-api](https://socket.dev/npm/package/astro-typed-api) from [lilnasy's GitHub](https://github.com/lilnasy/gratelets). However, a lot of things were changed to make it suit to my needs and more versatile than the original package.
 
-## Why astro-typed?
+## Why astro-typesafe-api?
 
-Astro's [API routes](https://docs.astro.build/en/core-concepts/endpoints) are a great way to serve dynamic content. However, they are completely detached from your front-end code. The responsibility of serializing and deserializing data is left to the developer, and there is no indication whether a refactor in API design is going to break some UI feature. 
-This integration aims to solve these problems by providing a type-safe `api` object that is aware of the input and return types of your API routes. Inline with the Astro philosophy, it does this while introducing minimum concepts to learn.
+[Astro's API routes](https://docs.astro.build/en/core-concepts/endpoints) offer a powerful way to serve dynamic content. However, they operate independently of your front-end code. This means developers must handle data serialization and deserialization manually, with no guarantee that changes in API design won't disrupt UI functionality.
+
+This integration addresses these issues by providing a type-safe api object that understands the input and return types of your API routes. Aligned with Astro's philosophy, it achieves this with minimal additional concepts to learn.
 
 ## Installation
 
 ### Manual Install
 
-First, install the `astro-typed` package using your package manager. If you're using npm or aren't sure, run this in the terminal:
+First, install the `astro-typesafe-api` package using your package manager. If you're using npm or aren't sure, run this in the terminal:
 
 ```sh
-npm install astro-typed
+npm install astro-typesafe-api
 ```
 
 Then, apply this integration to your `astro.config.*` file using the `integrations` property:
 
-```diff lang="js" "typedApi()"
+```diff lang="js" "astroTypesafeAPI()"
   // astro.config.mjs
   import { defineConfig } from 'astro/config';
-+ import typedApi from 'astro-typed';
++ import astroTypesafeAPI from 'astro-typesafe-api';
 
   export default defineConfig({
     // ...
-    integrations: [typedApi()],
+    integrations: [astroTypesafeAPI()],
     //             ^^^^^^^^
   });
 ```
@@ -63,27 +66,33 @@ Typed API routes are created using the `defineApiRoute()` function, which are th
 
 ```ts
 // src/pages/api/hello.ts
-import { defineApiRoute } from "astro-typed/server"
+import { defineApiRoute } from "astro-typesafe-api/server"
+import { z } from "zod"
 
 export const GET = defineApiRoute({
-    fetch: (name: string) => `Hello, ${name}!`
+	fetch: (name: string) => `Hello, ${name}!`,
+	input: z.string(),
+	output: z.string()
 )
 ```
-The `defineApiRoute()` function takes an object with a `fetch` method. The `fetch` method will be called when an HTTP request is routed to the current endpoint. Parsing the request for structured data and converting the returned value to a response is handled automatically. Once defined, the API route becomes available for browser-side code to use on the `api` object exported from `astro-typed/client`:
+
+The `defineApiRoute()` function takes an object with a `fetch` method. The `fetch` method will be called when an HTTP request is routed to the current endpoint. Parsing the request for structured data and converting the returned value to a response is handled automatically. Once defined, the API route becomes available for browser-side code to use on the `api` object exported from `astro-typesafe-api/client`:
+
 ```ts
 ---
 // src/pages/index.astro
 ---
 <script>
-    import { api } from "astro-typed/client"
+    import { api } from "astro-typesafe-api/client"
 
-    const message = await api.hello.GET.fetch("lilnasy")
-    console.log(message) // "Hello, lilnasy!"
+    const message = await api.hello.GET.fetch("Letsmoe")
+    console.log(message) // "Hello, Letsmoe!"
 </script>
 ```
+
 When the `fetch` method is called on the browser, the arguments passed to it are serialized as query parameters and a `GET` HTTP request is made to the Astro server. The result is deserialized from the response and returned by the call.
 
-Note that only endpoints within the `src/pages/api` directory are exposed on the `api` object. Additionally, the endpoints must all be typescript files. For example, `src/pages/x.ts` and `src/pages/api/x.js` will **not** be made available to `astro-typed/client`.
+Note that only endpoints within the `src/pages/api` directory are exposed on the `api` object. Additionally, the endpoints must all be typescript files. For example, `src/pages/x.ts` and `src/pages/api/x.js` will **not** be made available to `astro-typesafe-api/client`.
 
 ### Type-safety
 
@@ -91,22 +100,23 @@ Types for newly created endpoints are automatically added to the `api` object wh
 
 Typed API stores the generated types inside [`.astro` directory](https://docs.astro.build/en/guides/content-collections/#the-astro-directory) in the root of your project. The files here are automatically created, updated and used.
 
-### Input Validation
+### Input and output validation.
 
-`defineApiRoute()` also accepts a [zod schema](https://docs.astro.build/en/guides/content-collections/#defining-datatypes-with-zod) in the definition. 
+If `defineApiRoute()` is provided with a [zod schema](https://docs.astro.build/en/guides/content-collections/#defining-datatypes-with-zod) as the `input` and `output` property, the input and output of the API route will be validated against the schema automatically.
+
 ```ts
 // src/pages/api/validatedHello.ts
-import { defineApiRoute } from "astro-typed/server"
+import { defineApiRoute } from "astro-typesafe-api/server"
 import { z } from "zod"
 
 export const GET = defineApiRoute({
-    schema: z.object({
-        user: z.string(),
-    }),
-    fetch: ({ user }) => `Hello, ${user}!`,
+	input: z.object({
+		user: z.string(),
+	}),
+	output: z.string(),
+	fetch: ({ user }) => `Hello, ${user}!`,
 )
 ```
-When provided, the schema is used to validate the input passed to the `fetch` method. If the arguments are invalid, the API route returns a `500` response and the client-side call will throw. Additionally, the input type will be inferred from the schema.
 
 ### Using middleware locals
 
@@ -114,15 +124,16 @@ The `fetch()` method is provided Astro's [APIContext](https://docs.astro.build/e
 
 ```ts
 // src/pages/api/adminOnly.ts
-import { defineApiRoute } from "astro-typed/server"
+import { defineApiRoute } from "astro-typesafe-api/server"
 
 export const POST = defineApiRoute({
-    fetch: (name: string, { locals }) => {
-        const { user } = locals
-        if (!user) throw new Error("Visitor is not logged in.")
-        if (!user.admin) throw new Error("User is not an admin.")
-        ...
-    }
+	input: z.string(),
+	fetch: (name: string, { locals }) => {
+		const { user } = locals
+		if (!user) throw new Error("Visitor is not logged in.")
+		if (!user.admin) throw new Error("User is not an admin.")
+		...
+	}
 )
 ```
 
@@ -132,15 +143,15 @@ The `APIContext` object also includes a set of utility functions for managing co
 
 ```ts
 // src/pages/api/setPreferences.ts
-import { defineApiRoute } from "astro-typed/server"
+import { defineApiRoute } from "astro-typesafe-api/server"
 
 export const PATCH = defineApiRoute({
-    schema: z.object({
-        theme: z.enum(["light", "dark"]),
-    }),
-    fetch: ({ theme }, { cookies }) => {
-        cookies.set("theme", theme)
-    }
+	input: z.object({
+		theme: z.enum(["light", "dark"]),
+	}),
+	fetch: ({ theme }, { cookies }) => {
+		cookies.set("theme", theme)
+	}
 )
 ```
 
@@ -150,13 +161,14 @@ The `TypedAPIContext` object extends `APIContext` by also including a `response`
 
 ```ts
 // src/pages/api/cached.ts
-import { defineApiRoute } from "astro-typed/server"
+import { defineApiRoute } from "astro-typesafe-api/server"
 
 export const GET = defineApiRoute({
-    fetch: (_, { response }) => {
-        response.headers.set("Cache-Control", "max-age=3600")
-        return "Hello, world!"
-    }
+	output: z.string(),
+	fetch: (_, { response }) => {
+		response.headers.set("Cache-Control", "max-age=3600")
+		return "Hello, world!"
+	}
 )
 ```
 
@@ -169,42 +181,20 @@ The client-side `fetch()` method on the `api` object accepts the same options as
 // src/pages/index.astro
 ---
 <script>
-    import { api } from "astro-typed/client"
-    
-    const message = await api.cached.GET.fetch(undefined, {
-        headers: {
-            "Cache-Control": "no-cache",
-        }
-    })
+	import { api } from "astro-typesafe-api/client"
+
+	const message = await api.cached.GET.fetch(undefined, {
+		headers: {
+			"Cache-Control": "no-cache",
+		}
+	})
 </script>
-```
-
-### Usage with React
-
-Typed API does not include a hook of its own. However, it can be used with any React hook library that works with async functions. The following examples shows its usage with [`swr`](https://swr.vercel.app/).
-
-```tsx
-import useSWR from 'swr'
- 
-function Profile() {
-  const { data, error, isLoading } = useSWR('getUser', api.user.GET.fetch)
- 
-  if (error) return <div>failed to load</div>
-  if (isLoading) return <div>loading...</div>
-  return <div>hello {data.name}!</div>
-}
 ```
 
 ## Troubleshooting
 
-For help, check out the `Discussions` tab on the [GitHub repo](https://github.com/lilnasy/gratelets/discussions).
+For help, check out the `Discussions` tab on the [GitHub repo](https://github.com/letsmoe/astro-typesafe-api/discussions).
 
 ## Contributing
 
-This package is maintained by [lilnasy](https://github.com/lilnasy) independently from Astro. The integration code is located at [packages/typed-api/integration.ts](https://github.com/lilnasy/gratelets/blob/main/packages/typed-api/integration.ts). You're welcome to contribute by opening a PR or submitting an issue!
-
-## Changelog
-
-See [CHANGELOG.md](https://github.com/lilnasy/gratelets/blob/main/packages/typed-api/CHANGELOG.md) for a history of changes to this integration.
-
-[astro-integration]: https://docs.astro.build/en/guides/integrations-guide/
+This package is maintained by [letsmoe](https://github.com/letsmoe) independently from Astro. You're welcome to contribute by opening a PR or submitting an issue!
