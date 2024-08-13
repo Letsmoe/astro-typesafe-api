@@ -87,6 +87,19 @@ export class InputValidationFailed extends TypedAPIError {
     }
 }
 
+export class InvalidHeaderEncountered extends TypedAPIError {
+		name = "TypedAPIError.InvalidHeaderEncountered" as const
+		constructor(cause: unknown, url: string) {
+				super(
+						cause,
+						`The API Route failed to process the  request for ${url}.`,
+						"A header failed to validate against the schema.",
+						String(cause),
+						"See `error.cause` for more details."
+				)
+		}
+}
+
 export class OutputValidationFailed extends TypedAPIError {
 	name = "TypedAPIError.OutputValidationFailed" as const
 	constructor(cause: unknown, url: string) {

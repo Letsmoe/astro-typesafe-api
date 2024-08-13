@@ -71,19 +71,33 @@ export function createApiRoute(
 			output = await fetch(input, context);
 		} catch (error: any) {
 			if (error instanceof APIError) {
-				return new Response(JSON.stringify({
-					status: error.status,
-					cause: error.cause,
-					details: error.details,
-					message: error.message,
-				}), {status: error.status});
+				return new Response(
+					JSON.stringify({
+						status: error.status,
+						cause: error.cause,
+						details: error.details,
+						message: error.message,
+					}),
+					{
+						status: error.status,
+						headers: { "Content-Type": "application/json" },
+						statusText: error.message,
+					}
+				);
 			}
 
-				return new Response(JSON.stringify({
+			return new Response(
+				JSON.stringify({
 					cause: error.cause,
-					status: 500
-				}), {status: 500})
-			}
+					status: 500,
+				}),
+				{
+					status: 500,
+					headers: { "Content-Type": "application/json" },
+					statusText: "Internal Server Error",
+				}
+			);
+		}
 
 		let outputBody;
 		if (accept.includes("application/json") || accept.includes("*/*")) {
