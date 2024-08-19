@@ -1,5 +1,5 @@
 import type { z } from "zod"
-import type { TypedAPIHandler } from "./runtime/server.ts"
+import type { TypesafeAPIHandler } from "./runtime/server.ts"
 
 /***** ROUTER *****/
 
@@ -21,14 +21,14 @@ type ModuleProxy<EndpointModule, Params extends string> = {
         Method extends string
             ? Method extends Uppercase<Method>
                 ? MethodProxy<EndpointModule[Method], Params, Method extends string ? Method : never>
-            : TypedAPITypeError<"The method of an API Route must be exported as uppercase.">
-        : TypedAPITypeError<"The method of an API Route must be exported as uppercase.">
+            : TypesafeAPITypeError<"The method of an API Route must be exported as uppercase.">
+        : TypesafeAPITypeError<"The method of an API Route must be exported as uppercase.">
 }
 
 type MethodProxy<MethodExport, Params extends string, Method extends string> =
-    MethodExport extends TypedAPIHandler<infer Input, infer Output, infer OptionalHeaders>
+    MethodExport extends TypesafeAPIHandler<infer Input, infer Output, infer OptionalHeaders>
         ? Fetch_<z.infer<Input>, z.infer<Output>, OptionalHeaders, Params, Method>
-        : TypedAPITypeError<"This export from the API Route was not a typed handler. Please make sure it was created using `defineApiRoute`.">
+        : TypesafeAPITypeError<"This export from the API Route was not a typed handler. Please make sure it was created using `defineApiRoute`.">
 
 type EndpointToObject<Endpoint extends string, ModuleProxy> =
     Endpoint extends `[...${infer Param}]`
@@ -44,7 +44,7 @@ type EndpointToObject<Endpoint extends string, ModuleProxy> =
 type RequireParam<MP, Param extends string> = 
     MP extends ModuleProxy<infer EP, infer Params>
         ? ModuleProxy<EP, MapString<Params, never> | Param>
-        : TypedAPITypeError<"Types for this route with params could not be generated. This is probably a bug. Please open an issue with the minimal reproduction steps.">
+        : TypesafeAPITypeError<"Types for this route with params could not be generated. This is probably a bug. Please open an issue with the minimal reproduction steps.">
 
 /***** FETCH FUNCTION *****/
 
@@ -81,7 +81,7 @@ interface FetchMP<Input, Output, OptionalHeaders extends Record<string, z.ZodSch
 }
 
 export interface Options<OptionalHeaders extends Record<string, z.ZodSchema>> extends Omit<RequestInit, "body" | "method" | "headers"> {
-	headers: Required<Record<keyof OptionalHeaders, z.infer<OptionalHeaders[keyof OptionalHeaders]>>> & HeadersInit
+	headers?: Required<Record<keyof OptionalHeaders, z.infer<OptionalHeaders[keyof OptionalHeaders]>>> & HeadersInit
 }
 
 interface OptionsM<OptionalHeaders extends Record<string, z.ZodSchema>> extends Options<OptionalHeaders>, Required<Pick<RequestInit, "method">> {}
@@ -105,7 +105,7 @@ type DeepMerge<A, B> = {
                 : never
 }
 
-export interface TypedAPITypeError<Message> {
+export interface TypesafeAPITypeError<Message> {
     error: Message
 }
 

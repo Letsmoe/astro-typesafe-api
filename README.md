@@ -157,7 +157,7 @@ export const PATCH = defineApiRoute({
 
 ### Adding response headers
 
-The `TypedAPIContext` object extends `APIContext` by also including a `response` property which can be used to send additional headers to the browser and CDNs.
+The `TypesafeAPIContext` object extends `APIContext` by also including a `response` property which can be used to send additional headers to the browser and CDNs.
 
 ```ts
 // src/pages/api/cached.ts

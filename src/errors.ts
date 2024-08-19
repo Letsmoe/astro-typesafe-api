@@ -1,5 +1,5 @@
-export class TypedAPIError<Cause = unknown> extends Error {
-    name = "TypedAPIError"
+export class TypesafeAPIError<Cause = unknown> extends Error {
+    name = "TypesafeAPIError"
     cause: Cause
     constructor(cause: Cause, ...messages: string[]) {
         super(messages.join("\n\n"), { cause })
@@ -7,8 +7,8 @@ export class TypedAPIError<Cause = unknown> extends Error {
     }
 }
 
-export class MissingHTTPVerb extends TypedAPIError<undefined> {
-    name = "TypedAPIError.MissingHTTPVerb" as const
+export class MissingHTTPVerb extends TypesafeAPIError<undefined> {
+    name = "TypesafeAPIError.MissingHTTPVerb" as const
     constructor(endpoint: string) {
         super(
             undefined,
@@ -18,8 +18,8 @@ export class MissingHTTPVerb extends TypedAPIError<undefined> {
     }
 }
 
-export class IncorrectHTTPVerb extends TypedAPIError<undefined> {
-    name = "TypedAPIError.IncorrectHTTPVerb" as const
+export class IncorrectHTTPVerb extends TypesafeAPIError<undefined> {
+    name = "TypesafeAPIError.IncorrectHTTPVerb" as const
     constructor(verb: string, endpoint: string) {
         super(
             undefined,
@@ -29,8 +29,8 @@ export class IncorrectHTTPVerb extends TypedAPIError<undefined> {
     }
 }
 
-export class ResponseNotOK extends TypedAPIError<Response> {
-    name = "TypedAPIError.ResponseNotOK" as const
+export class ResponseNotOK extends TypesafeAPIError<Response> {
+    name = "TypesafeAPIError.ResponseNotOK" as const
     constructor(response: Response) {
         super(
             response,
@@ -40,8 +40,8 @@ export class ResponseNotOK extends TypedAPIError<Response> {
     }
 }
 
-export class UnknownResponseFormat extends TypedAPIError<Response> {
-    name = "TypedAPIError.UnknownResponseFormat" as const
+export class UnknownResponseFormat extends TypesafeAPIError<Response> {
+    name = "TypesafeAPIError.UnknownResponseFormat" as const
     constructor(response: Response) {
         super(
             response,
@@ -51,8 +51,8 @@ export class UnknownResponseFormat extends TypedAPIError<Response> {
     }
 }
 
-export class ZodNotInstalled extends TypedAPIError<undefined> {
-    name = "TypedAPIError.ZodNotInstalled" as const
+export class ZodNotInstalled extends TypesafeAPIError<undefined> {
+    name = "TypesafeAPIError.ZodNotInstalled" as const
     constructor() {
         super(
             undefined,
@@ -63,8 +63,8 @@ export class ZodNotInstalled extends TypedAPIError<undefined> {
     }
 }
 
-export class InvalidSchema extends TypedAPIError<unknown> {
-    name = "TypedAPIError.InvalidSchema" as const
+export class InvalidSchema extends TypesafeAPIError<unknown> {
+    name = "TypesafeAPIError.InvalidSchema" as const
     constructor(invalidSchema: unknown) {
         super(
             invalidSchema,
@@ -74,8 +74,8 @@ export class InvalidSchema extends TypedAPIError<unknown> {
     }
 }
 
-export class InputValidationFailed extends TypedAPIError {
-    name = "TypedAPIError.ValidationFailed" as const
+export class InputValidationFailed extends TypesafeAPIError {
+    name = "TypesafeAPIError.ValidationFailed" as const
     constructor(cause: unknown, url: string) {
         super(
             cause,
@@ -87,8 +87,8 @@ export class InputValidationFailed extends TypedAPIError {
     }
 }
 
-export class InvalidHeaderEncountered extends TypedAPIError {
-		name = "TypedAPIError.InvalidHeaderEncountered" as const
+export class InvalidHeaderEncountered extends TypesafeAPIError {
+		name = "TypesafeAPIError.InvalidHeaderEncountered" as const
 		constructor(cause: unknown, url: string) {
 				super(
 						cause,
@@ -100,8 +100,8 @@ export class InvalidHeaderEncountered extends TypedAPIError {
 		}
 }
 
-export class OutputValidationFailed extends TypedAPIError {
-	name = "TypedAPIError.OutputValidationFailed" as const
+export class OutputValidationFailed extends TypesafeAPIError {
+	name = "TypesafeAPIError.OutputValidationFailed" as const
 	constructor(cause: unknown, url: string) {
 			super(
 					cause,
@@ -113,8 +113,8 @@ export class OutputValidationFailed extends TypedAPIError {
 	}
 }
 
-export class AcceptHeaderMissing extends TypedAPIError<Request> {
-    name = "TypedAPIError.AcceptHeaderMissing" as const
+export class AcceptHeaderMissing extends TypesafeAPIError<Request> {
+    name = "TypesafeAPIError.AcceptHeaderMissing" as const
     constructor(request: Request) {
         super(
             request,
@@ -125,8 +125,8 @@ export class AcceptHeaderMissing extends TypedAPIError<Request> {
     }
 }
 
-export class UnsupportedClient extends TypedAPIError<Request> {
-    name = "TypedAPI.UnsupportedClient" as const
+export class UnsupportedClient extends TypesafeAPIError<Request> {
+    name = "TypesafeAPI.UnsupportedClient" as const
     constructor(request: Request) {
         super(
             request,
@@ -138,8 +138,8 @@ export class UnsupportedClient extends TypedAPIError<Request> {
     }
 }
 
-export class UnknownRequestFormat extends TypedAPIError<Request> {
-    name = "TypedAPI.UnknownRequestFormat" as const
+export class UnknownRequestFormat extends TypesafeAPIError<Request> {
+    name = "TypesafeAPI.UnknownRequestFormat" as const
     constructor(request: Request) {
         super(
             request,
@@ -152,8 +152,8 @@ export class UnknownRequestFormat extends TypedAPIError<Request> {
     }
 }
 
-export class InputNotDeserializable extends TypedAPIError {
-    name = "TypedAPIError.InputNotDeserializable" as const
+export class InputNotDeserializable extends TypesafeAPIError {
+    name = "TypesafeAPIError.InputNotDeserializable" as const
     constructor(cause: unknown, url: string) {
         super(
             cause,
@@ -165,8 +165,8 @@ export class InputNotDeserializable extends TypedAPIError {
     }
 }
 
-export class ProcedureFailed extends TypedAPIError {
-    name = "TypedAPIError.ProcedureFailed" as const
+export class ProcedureFailed extends TypesafeAPIError {
+    name = "TypesafeAPIError.ProcedureFailed" as const
     constructor(cause: unknown, url: string) {
         super(
             cause,
@@ -177,8 +177,8 @@ export class ProcedureFailed extends TypedAPIError {
     }
 }
 
-export class OutputNotSerializable extends TypedAPIError {
-    name = "TypedAPIError.OutputNotSerializable" as const
+export class OutputNotSerializable extends TypesafeAPIError {
+    name = "TypesafeAPIError.OutputNotSerializable" as const
     constructor(cause: unknown, url: string) {
         super(
             cause,

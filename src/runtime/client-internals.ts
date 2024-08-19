@@ -7,7 +7,7 @@ import {
 } from "../errors.ts";
 import { dataToParams } from "./param-codec.ts";
 
-export const proxyTarget = { typedApiEndpoint: new Array<string>() };
+export const proxyTarget = { TypesafeAPIEndpoint: new Array<string>() };
 export const proxyHandler: ProxyHandler<typeof proxyTarget> = { get };
 
 interface Options extends RequestInit {
@@ -19,11 +19,11 @@ function get(target: typeof proxyTarget, prop: string) {
 		throw new TypeError(
 			`The typed API client cannot be keyed with ${String(prop)}.`
 		);
-	const { typedApiEndpoint } = target;
+	const { TypesafeAPIEndpoint } = target;
 	if (prop === "fetch") {
-		const method = typedApiEndpoint.pop()!;
+		const method = TypesafeAPIEndpoint.pop()!;
 		return async (input: any, options?: Options) => {
-			const response = await callServer(typedApiEndpoint, method, input, options);
+			const response = await callServer(TypesafeAPIEndpoint, method, input, options);
 			const contentType = response.headers.get("Content-Type");
 			if (contentType === "application/escodec") {
 				return decode(await response.arrayBuffer());
@@ -34,10 +34,10 @@ function get(target: typeof proxyTarget, prop: string) {
 			throw new UnknownResponseFormat(response);
 		};
 	} else if (prop == "fetchRaw") {
-		const method = typedApiEndpoint.pop()!;
+		const method = TypesafeAPIEndpoint.pop()!;
 		return async (input: any, options?: Options) => {
 			const response = await callServer(
-				typedApiEndpoint,
+				TypesafeAPIEndpoint,
 				method,
 				input,
 				options
@@ -46,7 +46,7 @@ function get(target: typeof proxyTarget, prop: string) {
 		};
 	}
 	return new Proxy(
-		{ typedApiEndpoint: [...typedApiEndpoint, prop] },
+		{ TypesafeAPIEndpoint: [...TypesafeAPIEndpoint, prop] },
 		proxyHandler
 	);
 }

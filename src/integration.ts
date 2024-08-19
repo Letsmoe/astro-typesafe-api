@@ -57,7 +57,7 @@ async function generateTypes(filenames: string[], apiDir: URL, declarationFileUr
     let declaration = ``
     declaration += `type CreateRouter<Routes> = import("astro-typesafe-api/types").CreateRouter<Routes>\n`
     declaration += `\n`
-    declaration += `declare namespace TypedAPI {\n`
+    declaration += `declare namespace TypesafeAPI {\n`
     declaration += `    interface Client extends CreateRouter<[\n`
     for (const filename of filenames) {
         const endpoint = filename.replace(/(\/index)?\.m?ts$/, "")

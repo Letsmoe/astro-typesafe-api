@@ -7,13 +7,13 @@ import {
 	InputNotDeserializable,
 	ProcedureFailed,
 	OutputNotSerializable,
-	TypedAPIError,
+	TypesafeAPIError,
 } from "../errors.ts";
 import { paramsToData } from "./param-codec.ts";
-import { APIError, type TypedAPIContext } from "./server.ts";
+import { APIError, type TypesafeAPIContext } from "./server.ts";
 
 export function createApiRoute(
-	fetch: (input: unknown, content: TypedAPIContext) => unknown
+	fetch: (input: unknown, content: TypesafeAPIContext) => unknown
 ): APIRoute {
 	return async function (ctx) {
 		const { request } = ctx;
@@ -64,7 +64,7 @@ export function createApiRoute(
 			writable: false,
 		});
 
-		const context: TypedAPIContext = Object.assign(ctx, { response });
+		const context: TypesafeAPIContext = Object.assign(ctx, { response });
 
 		let output: any;
 		try {

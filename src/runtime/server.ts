@@ -34,10 +34,10 @@ interface ZodValidatedHeaderProvider<ValidatedHeaderName, ValidatedReturnType>
 	get(key: string): string | null;
 }
 
-export interface TypedAPIContext
+export interface TypesafeAPIContext
 	extends APIContext,
 		Pick<AstroGlobal, "response"> {}
-export interface TypedAPIHandler<
+export interface TypesafeAPIHandler<
 	InputSchema extends ZodSchema,
 	OutputSchema extends ZodSchema,
 	OptionalHeaders extends ZodValidatedIncomingHttpHeaders
@@ -48,7 +48,7 @@ export interface TypedAPIHandler<
 	headers?: OptionalHeaders;
 	fetch(
 		input: z.infer<InputSchema>,
-		context: Omit<TypedAPIContext, "request"> & {
+		context: Omit<TypesafeAPIContext, "request"> & {
 			request: Omit<Pick<AstroGlobal, "request">, "headers"> & {
 				headers: ZodValidatedHeaderProvider<
 					keyof OptionalHeaders,
@@ -60,16 +60,16 @@ export interface TypedAPIHandler<
 }
 
 // this particular overload has some song and dance to make sure type information does not get lost somewhere, be careful when changing it
-//export function defineApiRoute<Handler extends TypedAPIHandler<unknown, unknown>>(handler: Handler): APIRoute & Handler
+//export function defineApiRoute<Handler extends TypesafeAPIHandler<unknown, unknown>>(handler: Handler): APIRoute & Handler
 export function defineApiRoute<
 	InputSchema extends ZodSchema,
 	OutputSchema extends ZodSchema,
 	OptionalHeaders extends ZodValidatedIncomingHttpHeaders
 >(
-	handler: TypedAPIHandler<InputSchema, OutputSchema, OptionalHeaders>
-): TypedAPIHandler<InputSchema, OutputSchema, OptionalHeaders> {
+	handler: TypesafeAPIHandler<InputSchema, OutputSchema, OptionalHeaders>
+): TypesafeAPIHandler<InputSchema, OutputSchema, OptionalHeaders> {
 	return Object.assign(
-		createApiRoute(async (input: any, context: TypedAPIContext) => {
+		createApiRoute(async (input: any, context: TypesafeAPIContext) => {
 			let zod: typeof import("zod") | undefined;
 
 			try {
@@ -84,7 +84,7 @@ export function defineApiRoute<
 					const value = context.request.headers.get(key);
 					if (value === null) {
 						throw new InvalidHeaderEncountered(
-							`Header ${key} is missing.`,
+							`Header '${key}' is missing.`,
 							context.request.url
 						);
 					}
@@ -94,7 +94,7 @@ export function defineApiRoute<
 						context.request.headers.set(key, parsed);
 					} catch (error) {
 						throw new InvalidHeaderEncountered(
-							`Header ${key} is invalid.`,
+							`Header '${key}' is invalid.`,
 							context.request.url
 						);
 					}
