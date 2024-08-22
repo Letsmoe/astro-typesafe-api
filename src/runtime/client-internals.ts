@@ -102,7 +102,7 @@ async function callServer(
 	const body = isGET ? undefined : encode(input);
 	const response = await fetch(url, { ...options, method, body, headers });
 	if (response.ok === false) {
-		throw new ResponseNotOK(response);
+		throw new ResponseNotOK(response, await response.text());
 	}
 	return response;
 }

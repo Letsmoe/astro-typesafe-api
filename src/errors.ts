@@ -31,11 +31,11 @@ export class IncorrectHTTPVerb extends TypesafeAPIError<undefined> {
 
 export class ResponseNotOK extends TypesafeAPIError<Response> {
     name = "TypesafeAPIError.ResponseNotOK" as const
-    constructor(response: Response) {
+    constructor(response: Response, message: string) {
         super(
             response,
             `The API call was unsuccessful: ${response.statusText ?? response.status}.`,
-            "See `error.cause` for the full response.",
+						message
         )
     }
 }
