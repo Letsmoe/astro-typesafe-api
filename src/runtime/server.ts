@@ -37,11 +37,11 @@ interface ZodValidatedHeaderProvider<ValidatedHeaderName, ValidatedReturnType>
 export interface TypesafeAPIContext
 	extends APIContext,
 		Pick<AstroGlobal, "response"> {}
-export interface TypesafeAPIHandler<
+export type TypesafeAPIHandler<
 	InputSchema extends ZodSchema,
 	OutputSchema extends ZodSchema,
 	OptionalHeaders extends ZodValidatedIncomingHttpHeaders
-> {
+> = {
 	input?: InputSchema;
 	output?: OutputSchema;
 	meta?: OpenAPIMeta;

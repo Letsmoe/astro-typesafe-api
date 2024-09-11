@@ -144,8 +144,8 @@ export class UnknownRequestFormat extends TypesafeAPIError<Request> {
         super(
             request,
             `The API request to ${request.url} was invalid.`,
-            "Request format was neither JSON nor es-codec.",
-            "`Content-Type` header must be either `application/json` or `application/escodec`.",
+            "Request format was neither JSON nor es-codec nor form-data.",
+            "`Content-Type` header must be either `application/json`, `multipart/form-data` or `application/escodec`.",
             `Instead, it was ${JSON.stringify(request.headers.get("Content-Type"))}.`,
             "See `error.cause` for the full request."
         )

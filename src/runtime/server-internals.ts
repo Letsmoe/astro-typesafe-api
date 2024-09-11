@@ -3,11 +3,8 @@ import { encode, decode } from "es-codec";
 import {
 	AcceptHeaderMissing,
 	UnsupportedClient,
-	UnknownRequestFormat,
 	InputNotDeserializable,
-	ProcedureFailed,
 	OutputNotSerializable,
-	TypesafeAPIError,
 } from "../errors.ts";
 import { paramsToData } from "./param-codec.ts";
 import { APIError, type TypesafeAPIContext } from "./server.ts";
@@ -50,7 +47,13 @@ export function createApiRoute(
 			} catch (error) {
 				throw new InputNotDeserializable(error, url);
 			}
-		} else throw new UnknownRequestFormat(request);
+		} else if (contentType?.startsWith("multipart/form-data")) {
+			input = await request.formData();
+		} else {
+			// Since we don't want to just block any request that comes through with a non-natively supported content-type
+			// We will just let it slip using the request data as an array buffer and the dev will have to parse it manually.
+			input = await request.arrayBuffer()
+		};
 
 		const response = {
 			status: 200,
