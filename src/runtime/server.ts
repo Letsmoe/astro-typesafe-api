@@ -60,12 +60,12 @@ export type TypesafeAPIHandler<
 	fetch(
 		input: z.infer<InputSchema>,
 		context: TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders>,
-		transfer: ReturnType<Middleware>
+		transfer: Awaited<ReturnType<Middleware>>
 	): Promise<z.infer<OutputSchema>> | z.infer<OutputSchema>;
 	middleware?: Middleware
 }
 
-export type TypesafeAPIMiddleware<InputSchema extends ZodSchema> = (input: z.infer<InputSchema>, context: TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders>) => any;
+export type TypesafeAPIMiddleware<InputSchema extends ZodSchema> = (input: z.infer<InputSchema>, context: TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders>) => Promise<any>;
 
 // this particular overload has some song and dance to make sure type information does not get lost somewhere, be careful when changing it
 //export function defineApiRoute<Handler extends TypesafeAPIHandler<unknown, unknown>>(handler: Handler): APIRoute & Handler
@@ -137,7 +137,7 @@ export function defineApiRoute<
 
 			let transfer = null;
 			if (typeof handler.middleware === "function") {
-				transfer = handler.middleware(input, context as unknown as TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders>)
+				transfer = await handler.middleware(input, context as unknown as TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders>)
 			}
 
 			const output = await handler.fetch(input, context as unknown as TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders>, transfer);
