@@ -37,10 +37,21 @@ interface ZodValidatedHeaderProvider<ValidatedHeaderName, ValidatedReturnType>
 export interface TypesafeAPIContext
 	extends APIContext,
 		Pick<AstroGlobal, "response"> {}
+
+export type TypesafeAPIContextWithRequest<OptionalHeaders extends ZodValidatedIncomingHttpHeaders> = Omit<TypesafeAPIContext, "request"> & {
+	request: Omit<Pick<AstroGlobal, "request">, "headers"> & {
+		headers: ZodValidatedHeaderProvider<
+			keyof OptionalHeaders,
+			z.infer<OptionalHeaders[keyof OptionalHeaders]>
+		>;
+	};
+}
+
 export type TypesafeAPIHandler<
 	InputSchema extends ZodSchema,
 	OutputSchema extends ZodSchema,
-	OptionalHeaders extends ZodValidatedIncomingHttpHeaders
+	OptionalHeaders extends ZodValidatedIncomingHttpHeaders,
+	Middleware extends TypesafeAPIMiddleware<InputSchema>
 > = {
 	input?: InputSchema;
 	output?: OutputSchema;
@@ -48,26 +59,24 @@ export type TypesafeAPIHandler<
 	headers?: OptionalHeaders;
 	fetch(
 		input: z.infer<InputSchema>,
-		context: Omit<TypesafeAPIContext, "request"> & {
-			request: Omit<Pick<AstroGlobal, "request">, "headers"> & {
-				headers: ZodValidatedHeaderProvider<
-					keyof OptionalHeaders,
-					z.infer<OptionalHeaders[keyof OptionalHeaders]>
-				>;
-			};
-		}
+		context: TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders>,
+		transfer: ReturnType<Middleware>
 	): Promise<z.infer<OutputSchema>> | z.infer<OutputSchema>;
+	middleware?: Middleware
 }
+
+export type TypesafeAPIMiddleware<InputSchema extends ZodSchema> = (input: z.infer<InputSchema>, context: TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders>) => any;
 
 // this particular overload has some song and dance to make sure type information does not get lost somewhere, be careful when changing it
 //export function defineApiRoute<Handler extends TypesafeAPIHandler<unknown, unknown>>(handler: Handler): APIRoute & Handler
 export function defineApiRoute<
 	InputSchema extends ZodSchema,
 	OutputSchema extends ZodSchema,
-	OptionalHeaders extends ZodValidatedIncomingHttpHeaders
+	OptionalHeaders extends ZodValidatedIncomingHttpHeaders,
+	Middleware extends TypesafeAPIMiddleware<InputSchema>
 >(
-	handler: TypesafeAPIHandler<InputSchema, OutputSchema, OptionalHeaders>
-): TypesafeAPIHandler<InputSchema, OutputSchema, OptionalHeaders> {
+	handler: TypesafeAPIHandler<InputSchema, OutputSchema, OptionalHeaders, Middleware>
+): TypesafeAPIHandler<InputSchema, OutputSchema, OptionalHeaders, Middleware> {
 	return Object.assign(
 		createApiRoute(async (input: any, context: TypesafeAPIContext) => {
 			let zod: typeof import("zod") | undefined;
@@ -116,7 +125,7 @@ export function defineApiRoute<
 					// }
 
 					try {
-						input = handler.input.parse(input);
+						input = handler.input?.parse(input);
 					} catch (error) {
 						throw new InputValidationFailed(
 							error,
@@ -126,7 +135,12 @@ export function defineApiRoute<
 				}
 			}
 
-			const output = await handler.fetch(input, context);
+			let transfer = null;
+			if (typeof handler.middleware === "function") {
+				transfer = handler.middleware(input, context as unknown as TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders>)
+			}
+
+			const output = await handler.fetch(input, context as unknown as TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders>, transfer);
 
 			if ("output" in handler) {
 				// if (handler.output instanceof zod.ZodSchema === false) {
@@ -134,7 +148,7 @@ export function defineApiRoute<
 				// }
 
 				try {
-					return handler.output.parse(output);
+					return handler.output?.parse(output);
 				} catch (error) {
 					throw new OutputValidationFailed(
 						error,

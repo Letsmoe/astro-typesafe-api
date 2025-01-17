@@ -15,11 +15,13 @@ export function createApiRoute(
 	return async function (ctx) {
 		const { request } = ctx;
 		const { method, headers, url } = request;
+		
 		const contentType = headers.get("Content-Type");
-		const accept = headers.get("Accept");
+		let accept = headers.get("Accept");
 		// Check if an accept header is present
 		if (accept === null) {
-			throw new AcceptHeaderMissing(request);
+			// Assume the accept header was supposed to be application/json
+			accept = "application/json"
 		}
 		// Make sure the client can accept the response format
 		if (

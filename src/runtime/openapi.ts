@@ -28,6 +28,7 @@ export type OpenAPIExampleObject = {
 }
 
 export type OpenAPIMeta = {
+	tags?: string[]
 	summary?: string,
 	description?: string,
 	externalDocs?: OpenAPIExternalDocsObject
