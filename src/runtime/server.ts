@@ -9,9 +9,10 @@ import { createApiRoute } from "./server-internals.ts";
 import type { APIContext, AstroGlobal } from "astro";
 import { z, ZodSchema } from "zod";
 import type { IncomingHttpHeaders } from "node:http";
+import type { MapAny, TypesafeAPITypeError } from "../types.ts";
 
 
-type ZodValidatedIncomingHttpHeaders = Record<
+export type ZodValidatedIncomingHttpHeaders = Record<
 	keyof IncomingHttpHeaders,
 	z.ZodSchema
 >;
@@ -67,8 +68,6 @@ export type TypesafeAPIHandler<
 
 export type TypesafeAPIMiddleware<InputSchema extends ZodSchema> = (input: z.infer<InputSchema>, context: TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders>) => Promise<any>;
 
-// this particular overload has some song and dance to make sure type information does not get lost somewhere, be careful when changing it
-//export function defineApiRoute<Handler extends TypesafeAPIHandler<unknown, unknown>>(handler: Handler): APIRoute & Handler
 export function defineApiRoute<
 	InputSchema extends ZodSchema,
 	OutputSchema extends ZodSchema,
@@ -241,5 +240,94 @@ export class APIError {
 			default:
 				return 500;
 		}
+	}
+}
+
+/**
+ * Create a virtual caller that will call the methods attached to API routes instead of fetching them.
+ * @param context The context that will be provided with the request.
+ */
+export function createCallerFactory(routes: Record<string, any>) {
+	return (astro: AstroGlobal) => {
+		const proxyTarget = { TypesafeAPIEndpoint: new Array<string>() };
+		const proxyHandler: ProxyHandler<typeof proxyTarget> = { get };
+		
+		interface Options extends RequestInit {
+			params?: Record<string, string>;
+		}
+	
+		function get(target: typeof proxyTarget, prop: string) {
+			if (typeof prop === "symbol")
+				throw new TypeError(
+					`The typed API client cannot be keyed with ${String(prop)}.`
+				);
+			const { TypesafeAPIEndpoint } = target;
+			if (prop === "fetch") {
+				const method = TypesafeAPIEndpoint.pop()!;
+				return async (input: any, options?: Options) => {
+					let path = TypesafeAPIEndpoint.map(segment => {
+						if (segment.startsWith("_")) {
+							return `[${segment.slice(1, segment.length)}]`
+						}
+	
+						return segment
+					}).join("/")
+	
+					const module = routes[path];
+	
+					if (!(method in module)) {
+						throw new Error(`'${path}' not callable with method ${method}`)
+					}
+					
+	
+					const endpoint = module[method] as TypesafeAPIHandler<any,any,any,any>;
+	
+					const request = new Request(new URL("http://127.0.0.1"), {
+						headers: new Headers(options?.headers)
+					})
+	
+					astro.params = options?.params || {};
+	
+					const ctx: TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders> = Object.assign(astro, {
+						request
+					});
+					
+					let transfer = null;
+					if ("middleware" in endpoint) {
+						try {
+							transfer = await endpoint.middleware(input, ctx)
+						} catch(e) {
+							let error: string = e as string;
+							if (e instanceof APIError) {
+								error = e.message
+							}
+
+							throw new Error(`'${path}' middleware threw '${error}', please be aware that some request parameters might not be available in a server-side caller context or that they need to be provided manually.`)
+						}
+					}
+					
+					try {
+						return await endpoint.fetch(input, ctx, transfer);
+					} catch(e) {
+						let error: string = e as string;
+						if (e instanceof APIError) {
+							error = e.message
+						}
+
+						throw new Error(`'${path}' endpoint threw '${error}', please be aware that some request parameters might not be available in a server-side caller context or that they need to be provided manually.`)
+					}
+				};
+			}
+			return new Proxy(
+				{ TypesafeAPIEndpoint: [...TypesafeAPIEndpoint, prop] },
+				proxyHandler
+			);
+		}
+
+		return new Proxy(proxyTarget, proxyHandler) as unknown as MapAny<
+				// @ts-ignore this doesn't exist until .astro/astro-typesafe-api.d.ts is generated
+				TypesafeAPI.Client,
+				TypesafeAPITypeError<"The types for the client have not been generated yet. Try running `npm exec astro sync`.">
+		>
 	}
 }

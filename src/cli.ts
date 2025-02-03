@@ -7,7 +7,9 @@ import { promisify } from "util";
 import { OpenAPIV3 } from "openapi-types";
 import type { OpenAPIMeta } from "./runtime/openapi";
 import type { defineApiRoute } from "./runtime/server";
-import { zodToOpenAPISchema } from "./openapi/conversion";
+import { zodToJsonSchema } from "zod-to-json-schema";
+import type { ZodSchema } from "zod";
+import inquirer from "inquirer"
 
 const restRequestMethods  = ["GET", "ALL", "POST", "DELETE", "PUT", "PATCH"]
 
@@ -35,6 +37,13 @@ Commander.program
 		const root = path.join(process.cwd(), "./src/pages/api")
 		const routes = await recursiveReaddir(root)
 
+		const { url } = await inquirer.prompt([{
+			name: "url",
+			message: "What's your server's URL?",
+			type: "input",
+			default: "http://localhost"
+		}])
+
 		const openApiDoc: OpenAPIV3.Document = {
 			openapi: "3.0.3",
 			info: {
@@ -42,7 +51,10 @@ Commander.program
 				version: options.version,
 				description: options.description
 			},
-			paths: {}
+			paths: {},
+			servers: [{
+				url,
+			}]
 		}
 		
 		for (const route of routes) {
@@ -57,7 +69,16 @@ Commander.program
 
 				const meta = requestMethod.meta || {} as OpenAPIMeta;
 
-				const name = path.parse(route.replace(root, "")).name
+				// replace astro's url parameter syntax with openapi's parameter syntax
+				let name = route.replace(root, "").replaceAll(/\[(.*?)\]/g, "{$1}")
+				// remove the extension
+				name = name.slice(0, -path.extname(name).length)
+
+				if (path.parse(name).name === "index") {
+					// remove index name
+					name = name.slice(0, -5)
+				}
+				
 
 				// @ts-ignore
 				openApiDoc.paths[name] = {} as Record<keyof OpenAPIV3.PathItemObject, OpenAPIV3.OperationObject>;
@@ -68,18 +89,44 @@ Commander.program
 					tags: meta.tags,
 					requestBody: requestMethod.input ? {
 						required: true,
-						content: {
-							"application/json": {
-								schema: zodToOpenAPISchema(requestMethod.input)
+						content: (meta.contentTypes || ["application/json"]).reduce((acc, c) => {
+							acc[c] = {
+								schema: zodToJsonSchema(requestMethod.input as ZodSchema, {
+									target: "openApi3"
+								})
 							}
-						}
+
+							return acc;
+						}, {} as Record<string, any>)
 					} : undefined,
+					parameters: Array.from(name.matchAll(/\{(.*?)\}/g)).map((match) => {
+						return {
+							name: match[1],
+							in: "path",
+							required: true,
+							schema: {
+								type: "string"
+							}
+						} as OpenAPIV3.ParameterObject
+					}).concat(Object.entries(requestMethod.headers || {}).map(([name, value]) => {
+						return {
+							name,
+							schema: zodToJsonSchema(value, {
+								target: "openApi3"
+							}),
+							description: value.description,
+							required: !value.isOptional(),
+							in: "header"
+						} as OpenAPIV3.ParameterObject
+					})),
 					responses: {
 						200: {
 							description: "Successful response",
 							content: {
 								"application/json": {
-									schema: requestMethod.output ? zodToOpenAPISchema(requestMethod.output) : {}
+									schema: requestMethod.output ? zodToJsonSchema(requestMethod.output, {
+										target: "openApi3"
+									}) : {}
 								}
 							}
 						}

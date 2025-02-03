@@ -29,7 +29,11 @@ function get(target: typeof proxyTarget, prop: string) {
 				return decode(await response.arrayBuffer());
 			}
 			if (contentType === "application/json") {
-				return await response.json();
+				try {
+					return await response.json();
+				} catch(e) {
+					return null;
+				}
 			}
 			throw new UnknownResponseFormat(response);
 		};

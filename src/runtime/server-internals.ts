@@ -10,7 +10,7 @@ import { paramsToData } from "./param-codec.ts";
 import { APIError, type TypesafeAPIContext } from "./server.ts";
 
 export function createApiRoute(
-	fetch: (input: unknown, content: TypesafeAPIContext) => unknown
+	fetch: (input: unknown, ctx: TypesafeAPIContext) => unknown
 ): APIRoute {
 	return async function (ctx) {
 		const { request } = ctx;

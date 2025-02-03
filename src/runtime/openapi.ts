@@ -31,6 +31,7 @@ export type OpenAPIMeta = {
 	tags?: string[]
 	summary?: string,
 	description?: string,
+	contentTypes?: string[],
 	externalDocs?: OpenAPIExternalDocsObject
 	headers?: Record<string, Omit<Omit<OpenAPIParameterObject, "name">, "in"> | OpenAPIReferenceObject>
 }

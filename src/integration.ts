@@ -15,6 +15,7 @@ export interface Options {
 export default function (_?: Partial<Options>): AstroIntegration {
 	let apiDir: URL;
 	let declarationFileUrl: URL;
+	let routeMapFileUrl: URL;
 	return {
 		name: "astro-typesafe-api",
 		hooks: {
@@ -24,6 +25,7 @@ export default function (_?: Partial<Options>): AstroIntegration {
 					".astro/astro-typesafe-api.d.ts",
 					config.root
 				);
+				routeMapFileUrl = new URL("astro-typesafe-api-caller.ts", config.srcDir)
 
 				updateConfig({
 					vite: {
@@ -44,10 +46,11 @@ export default function (_?: Partial<Options>): AstroIntegration {
 										logger,
 										declarationFileUrl
 									);
-									generateTypes(
+									generateTypesAndRouteMap(
 										filenames,
 										apiDir,
-										declarationFileUrl
+										declarationFileUrl,
+										routeMapFileUrl
 									);
 								},
 							},
@@ -78,7 +81,7 @@ export default function (_?: Partial<Options>): AstroIntegration {
 						const filenames = await globby("**/*.{ts,mts}", {
 							cwd: apiDir,
 						});
-						generateTypes(filenames, apiDir, declarationFileUrl);
+						generateTypesAndRouteMap(filenames, apiDir, declarationFileUrl, routeMapFileUrl);
 					}
 				});
 			},
@@ -86,10 +89,11 @@ export default function (_?: Partial<Options>): AstroIntegration {
 	};
 }
 
-async function generateTypes(
+async function generateTypesAndRouteMap(
 	filenames: string[],
 	apiDir: URL,
-	declarationFileUrl: URL
+	declarationFileUrl: URL,
+	routeMapFileUrl: URL
 ) {
 	const dotAstroPath = path.dirname(url.fileURLToPath(declarationFileUrl));
 	const apiPath = url.fileURLToPath(apiDir);
@@ -114,6 +118,19 @@ async function generateTypes(
 	declaration += `    ]> {}\n`;
 	declaration += `}\n`;
 	fs.writeFileSync(declarationFileUrl, declaration);
+
+
+	/* -------------------------- Write the route map -------------------------- */
+
+	let routeMap = `import { createCallerFactory } from "astro-typesafe-api/server";\n\nexport const createCaller = createCallerFactory({\n${filenames.map(filename => {
+		const endpoint = filename.replace(/(\/index)?\.m?ts$/, "");
+		const specifier = path
+			.relative(dotAstroPath, path.join(apiPath, filename))
+			.replaceAll("\\", "/");
+		return `    ${JSON.stringify(endpoint)}: await import(${JSON.stringify(specifier)}),`;
+	}).join("\n")}\n})`
+
+	fs.writeFileSync(routeMapFileUrl, routeMap)
 }
 
 function injectEnvDTS(

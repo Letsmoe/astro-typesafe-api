@@ -26,7 +26,7 @@ type ModuleProxy<EndpointModule, Params extends string> = {
 }
 
 type MethodProxy<MethodExport, Params extends string, Method extends string> =
-    MethodExport extends TypesafeAPIHandler<infer Input, infer Output, infer OptionalHeaders>
+    MethodExport extends TypesafeAPIHandler<infer Input, infer Output, infer OptionalHeaders, infer Middleware>
         ? Fetch_<z.infer<Input>, z.infer<Output>, OptionalHeaders, Params, Method>
         : TypesafeAPITypeError<"This export from the API Route was not a typed handler. Please make sure it was created using `defineApiRoute`.">
 
@@ -52,30 +52,30 @@ type RequireParam<MP, Param extends string> =
 // typed API options should become required
 export type Fetch_<Input, Output, OptionalHeaders extends Record<string, z.ZodSchema>, Params extends string, Method extends string> = 
     IsNever<Params> extends true
-        ? Method extends "ALL" ? FetchM<Input, Output, OptionalHeaders> : unknown extends Input ? FetchO<Input, Output, OptionalHeaders> : Fetch<Input, Output, OptionalHeaders>
-        : Method extends "ALL" ? FetchMP<Input, Output, OptionalHeaders, Params> : FetchP<Input, Output, OptionalHeaders, Params>
+        ? Method extends "ALL" ? FetchRequireMethod<Input, Output, OptionalHeaders> : unknown extends Input ? FetchOptionalInput<Input, Output, OptionalHeaders> : Fetch<Input, Output, OptionalHeaders>
+        : Method extends "ALL" ? FetchRequireMethodAndParams<Input, Output, OptionalHeaders, Params> : FetchRequireParams<Input, Output, OptionalHeaders, Params>
 
 interface Fetch<Input, Output, OptionalHeaders extends Record<string, z.ZodSchema>> {
     fetch(input: Input, options?: Options<OptionalHeaders>): Promise<Output>
 		fetchRaw(input: Input, options?: Options<OptionalHeaders>): Promise<Response>
 }
 
-interface FetchO<Input, Output, OptionalHeaders extends Record<string, z.ZodSchema>> {
+interface FetchOptionalInput<Input, Output, OptionalHeaders extends Record<string, z.ZodSchema>> {
     fetch(input?: Input, options?: Options<OptionalHeaders>): Promise<Output>
 		fetchRaw(input?: Input, options?: Options<OptionalHeaders>): Promise<Response>
 }
 
-interface FetchM<Input, Output, OptionalHeaders extends Record<string, z.ZodSchema>> {
-    fetch(input: Input, options: OptionsM<OptionalHeaders>): Promise<Output>
-		fetchRaw(input: Input, options: OptionsM<OptionalHeaders>): Promise<Response>
+interface FetchRequireMethod<Input, Output, OptionalHeaders extends Record<string, z.ZodSchema>> {
+    fetch(input: Input, options: OptionsRequireMethod<OptionalHeaders>): Promise<Output>
+		fetchRaw(input: Input, options: OptionsRequireMethod<OptionalHeaders>): Promise<Response>
 }
 
-interface FetchP<Input, Output, OptionalHeaders extends Record<string, z.ZodSchema>, Params extends string> {
-    fetch(input: Input, options: OptionsP<OptionalHeaders, Params>): Promise<Output>
-    fetchRaw(input: Input, options: OptionsP<OptionalHeaders, Params>): Promise<Response>
+interface FetchRequireParams<Input, Output, OptionalHeaders extends Record<string, z.ZodSchema>, Params extends string> {
+    fetch(input: Input, options: OptionsRequireParams<OptionalHeaders, Params>): Promise<Output>
+    fetchRaw(input: Input, options: OptionsRequireParams<OptionalHeaders, Params>): Promise<Response>
 }
 
-interface FetchMP<Input, Output, OptionalHeaders extends Record<string, z.ZodSchema>, Params extends string> {
+interface FetchRequireMethodAndParams<Input, Output, OptionalHeaders extends Record<string, z.ZodSchema>, Params extends string> {
     fetch(input: Input, options: OptionsMP<OptionalHeaders, Params>): Promise<Output>
     fetchRaw(input: Input, options: OptionsMP<OptionalHeaders, Params>): Promise<Response>
 }
@@ -84,13 +84,13 @@ export interface Options<OptionalHeaders extends Record<string, z.ZodSchema>> ex
 	headers?: Required<Record<keyof OptionalHeaders, z.infer<OptionalHeaders[keyof OptionalHeaders]>>> & HeadersInit
 }
 
-interface OptionsM<OptionalHeaders extends Record<string, z.ZodSchema>> extends Options<OptionalHeaders>, Required<Pick<RequestInit, "method">> {}
+interface OptionsRequireMethod<OptionalHeaders extends Record<string, z.ZodSchema>> extends Options<OptionalHeaders>, Required<Pick<RequestInit, "method">> {}
 
-interface OptionsP<OptionalHeaders extends Record<string, z.ZodSchema>, Params extends string> extends Options<OptionalHeaders> {
+interface OptionsRequireParams<OptionalHeaders extends Record<string, z.ZodSchema>, Params extends string> extends Options<OptionalHeaders> {
     params: Record<Params, string>
 }
 
-interface OptionsMP<OptionalHeaders extends Record<string, z.ZodSchema>, Params extends string> extends OptionsM<OptionalHeaders>, OptionsP<OptionalHeaders, Params> {}
+interface OptionsMP<OptionalHeaders extends Record<string, z.ZodSchema>, Params extends string> extends OptionsRequireMethod<OptionalHeaders>, OptionsRequireParams<OptionalHeaders, Params> {}
 
 /***** UTLITY FUNCTIONS *****/
 

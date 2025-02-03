@@ -4,7 +4,12 @@
   "version": "0.1.8",
   "devDependencies": {
     "@types/bun": "latest",
-    "openapi-types": "^12.1.3"
+    "openapi-types": "^12.1.3",
+		"commander": "^13.0.0",
+    "es-codec": "^0.5.0",
+    "globby": "^14.0.2",
+    "inquirer": "^12.3.2",
+    "zod-to-json-schema": "^3.24.1"
   },
   "exports": {
     ".": "./src/integration.ts",
@@ -14,16 +19,11 @@
     "./errors": "./src/errors.ts"
   },
   "peerDependencies": {
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "astro": "^4.16.17",
+    "zod": "^3.24.1"
   },
   "bin": {
     "astro-typesafe-api": "./src/cli.ts"
-  },
-  "dependencies": {
-    "astro": "^4.16.17",
-    "commander": "^13.0.0",
-    "es-codec": "^0.5.0",
-    "globby": "^14.0.2",
-    "zod": "^3.24.1"
   }
 }
