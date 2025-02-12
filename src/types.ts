@@ -1,116 +1,152 @@
-import type { z } from "zod"
-import type { TypesafeAPIHandler } from "./runtime/server.ts"
+import type { z } from "zod";
+import type { TypesafeAPIHandler } from "./runtime/server.ts";
 
-/***** ROUTER *****/
+/*─────────────────────────────────────────────────────────────*
+ *                    UTILITY TYPES
+ *─────────────────────────────────────────────────────────────*/
 
-export type CreateRouter<Routes extends [string, unknown][]> =
-    CreateRouter_<Routes, {}>
+// Convert a union to an intersection.
+type UnionToIntersection<U> =
+  (U extends any ? (k: U) => void : never) extends ((k: infer I) => void)
+    ? I
+    : never;
 
-type CreateRouter_<Routes extends [string, unknown][], Router> =
-    Routes extends [infer Head, ...infer Tail extends [string, unknown][]]
-        ? Head extends [infer Filename extends string, infer EndpointModule]
-            ? CreateRouter_<Tail, DeepMerge<Router, Route<Filename, EndpointModule>>>
-            : never
-        : Router
-
-type Route<Endpoint extends string, EndpointModule> =
-    EndpointToObject<Endpoint, ModuleProxy<EndpointModule, never>>
-
-type ModuleProxy<EndpointModule, Params extends string> = {
-    [Method in keyof EndpointModule]:
-        Method extends string
-            ? Method extends Uppercase<Method>
-                ? MethodProxy<EndpointModule[Method], Params, Method extends string ? Method : never>
-            : TypesafeAPITypeError<"The method of an API Route must be exported as uppercase.">
-        : TypesafeAPITypeError<"The method of an API Route must be exported as uppercase.">
-}
-
-type MethodProxy<MethodExport, Params extends string, Method extends string> =
-    MethodExport extends TypesafeAPIHandler<infer Input, infer Output, infer OptionalHeaders, infer Middleware>
-        ? Fetch_<z.infer<Input>, z.infer<Output>, OptionalHeaders, Params, Method>
-        : TypesafeAPITypeError<"This export from the API Route was not a typed handler. Please make sure it was created using `defineApiRoute`.">
-
-type EndpointToObject<Endpoint extends string, ModuleProxy> =
-    Endpoint extends `[...${infer Param}]`
-        ? { [_ in `_${Param}_`]: RequireParam<ModuleProxy, Param> }
-    : Endpoint extends `[${infer Param}]/${infer Rest}`
-        ? { [_ in `_${Param}`]: EndpointToObject<Rest, RequireParam<ModuleProxy, Param>> }
-    : Endpoint extends `[${infer Param}]`
-        ? { [_ in `_${Param}`]: RequireParam<ModuleProxy, Param> }
-    : Endpoint extends `${infer Start}/${infer Rest}`
-        ? { [_ in Start]: EndpointToObject<Rest, ModuleProxy> }
-        : { [_ in Endpoint]: ModuleProxy }
-
-type RequireParam<MP, Param extends string> = 
-    MP extends ModuleProxy<infer EP, infer Params>
-        ? ModuleProxy<EP, MapString<Params, never> | Param>
-        : TypesafeAPITypeError<"Types for this route with params could not be generated. This is probably a bug. Please open an issue with the minimal reproduction steps.">
-
-/***** FETCH FUNCTION *****/
-
-// when the path includes a param (pages/api/[x].ts -> client.api._x.GET)
-// typed API options should become required
-export type Fetch_<Input, Output, OptionalHeaders extends Record<string, z.ZodSchema>, Params extends string, Method extends string> = 
-    IsNever<Params> extends true
-        ? Method extends "ALL" ? FetchRequireMethod<Input, Output, OptionalHeaders> : unknown extends Input ? FetchOptionalInput<Input, Output, OptionalHeaders> : Fetch<Input, Output, OptionalHeaders>
-        : Method extends "ALL" ? FetchRequireMethodAndParams<Input, Output, OptionalHeaders, Params> : FetchRequireParams<Input, Output, OptionalHeaders, Params>
-
-interface Fetch<Input, Output, OptionalHeaders extends Record<string, z.ZodSchema>> {
-    fetch(input: Input, options?: Options<OptionalHeaders>): Promise<Output>
-		fetchRaw(input: Input, options?: Options<OptionalHeaders>): Promise<Response>
-}
-
-interface FetchOptionalInput<Input, Output, OptionalHeaders extends Record<string, z.ZodSchema>> {
-    fetch(input?: Input, options?: Options<OptionalHeaders>): Promise<Output>
-		fetchRaw(input?: Input, options?: Options<OptionalHeaders>): Promise<Response>
-}
-
-interface FetchRequireMethod<Input, Output, OptionalHeaders extends Record<string, z.ZodSchema>> {
-    fetch(input: Input, options: OptionsRequireMethod<OptionalHeaders>): Promise<Output>
-		fetchRaw(input: Input, options: OptionsRequireMethod<OptionalHeaders>): Promise<Response>
-}
-
-interface FetchRequireParams<Input, Output, OptionalHeaders extends Record<string, z.ZodSchema>, Params extends string> {
-    fetch(input: Input, options: OptionsRequireParams<OptionalHeaders, Params>): Promise<Output>
-    fetchRaw(input: Input, options: OptionsRequireParams<OptionalHeaders, Params>): Promise<Response>
-}
-
-interface FetchRequireMethodAndParams<Input, Output, OptionalHeaders extends Record<string, z.ZodSchema>, Params extends string> {
-    fetch(input: Input, options: OptionsMP<OptionalHeaders, Params>): Promise<Output>
-    fetchRaw(input: Input, options: OptionsMP<OptionalHeaders, Params>): Promise<Response>
-}
-
-export interface Options<OptionalHeaders extends Record<string, z.ZodSchema>> extends Omit<RequestInit, "body" | "method" | "headers"> {
-	headers?: Required<Record<keyof OptionalHeaders, z.infer<OptionalHeaders[keyof OptionalHeaders]>>> & HeadersInit
-}
-
-interface OptionsRequireMethod<OptionalHeaders extends Record<string, z.ZodSchema>> extends Options<OptionalHeaders>, Required<Pick<RequestInit, "method">> {}
-
-interface OptionsRequireParams<OptionalHeaders extends Record<string, z.ZodSchema>, Params extends string> extends Options<OptionalHeaders> {
-    params: Record<Params, string>
-}
-
-interface OptionsMP<OptionalHeaders extends Record<string, z.ZodSchema>, Params extends string> extends OptionsRequireMethod<OptionalHeaders>, OptionsRequireParams<OptionalHeaders, Params> {}
-
-/***** UTLITY FUNCTIONS *****/
-
-type DeepMerge<A, B> = {
-    [Key in keyof A | keyof B]:
-        Key extends keyof A
-            ? Key extends keyof B
-                ? DeepMerge<A[Key], B[Key]>
-                : A[Key]
-            : Key extends keyof B
-                ? B[Key]
-                : never
-}
+// Check if a type is `never`.
+type IsNever<T> = [T] extends [never] ? true : false;
 
 export interface TypesafeAPITypeError<Message> {
-    error: Message
+  error: Message;
 }
+
+/*─────────────────────────────────────────────────────────────*
+ *                    PARAM EXTRACTION
+ *─────────────────────────────────────────────────────────────*/
+
+/**
+ * Extracts a union of parameter names from an endpoint string.
+ *
+ * Examples:
+ *   - "[id]"             → "id"
+ *   - "foo/[id]"         → "id"
+ *   - "[...slug]"        → "slug"
+ *   - "foo/[id]/bar/[x]"  → "id" | "x"
+ */
+type ExtractParams<Endpoint extends string> =
+  Endpoint extends `[...${infer Param}]` ? Param :
+  Endpoint extends `[${infer Param}]/${infer Rest}` ? Param | ExtractParams<Rest> :
+  Endpoint extends `${infer _}/${infer Rest}` ? ExtractParams<Rest> :
+  Endpoint extends `[${infer Param}]` ? Param : never;
+
+/*─────────────────────────────────────────────────────────────*
+ *                    FETCH FUNCTION TYPES
+ *─────────────────────────────────────────────────────────────*/
+
+/**
+ * The base options for the fetch functions.
+ */
+export interface Options<OptionalHeaders extends Record<string, z.ZodSchema>>
+  extends Omit<RequestInit, "body" | "method" | "headers"> {
+  headers?: (Record<keyof OptionalHeaders, z.infer<OptionalHeaders[keyof OptionalHeaders]>> & HeadersInit);
+}
+
+/**
+ * Options extended to require a `params` property when the route has parameters.
+ */
+interface OptionsWithParams<OptionalHeaders extends Record<string, z.ZodSchema>, Params extends string>
+  extends Options<OptionalHeaders> {
+    params: Record<Params, string>;
+}
+
+/**
+ * A fetch interface that conditionally requires a `params` property based on the endpoint.
+ */
+export type Fetch_<Input, Output, OptionalHeaders extends Record<string, z.ZodSchema>, Params extends string> =
+  IsNever<Params> extends true
+    ? {
+        fetch(input: Input, options?: Options<OptionalHeaders>): Promise<Output>;
+        fetchRaw(input: Input, options?: Options<OptionalHeaders>): Promise<Response>;
+      }
+    : {
+        fetch(input: Input, options: OptionsWithParams<OptionalHeaders, Params>): Promise<Output>;
+        fetchRaw(input: Input, options: OptionsWithParams<OptionalHeaders, Params>): Promise<Response>;
+      };
+
+/*─────────────────────────────────────────────────────────────*
+ *                    ROUTER TYPES
+ *─────────────────────────────────────────────────────────────*/
+
+/**
+ * Builds a router from a tuple of routes.
+ * Each tuple element is of the form `[EndpointString, EndpointModule]`.
+ *
+ * We map over the tuple to produce a union of route objects and then convert that
+ * union to an intersection.
+ */
+export type CreateRouter<Routes extends [string, unknown][]> =
+  UnionToIntersection<
+    {
+      [K in keyof Routes]: Routes[K] extends [infer Endpoint extends string, infer Module]
+        ? Route<Endpoint, Module>
+        : never;
+    }[number]
+  >;
+
+/**
+ * For a given route, convert its endpoint string and module into an object type.
+ *
+ * The module is “wrapped” in a proxy that converts each exported uppercase
+ * method (which should be a typed API handler) into a fetch interface.
+ * The extracted parameters from the endpoint string are passed along.
+ */
+type Route<Endpoint extends string, EndpointModule> =
+  EndpointToObject<Endpoint, ModuleProxy<EndpointModule, ExtractParams<Endpoint>>>;
+
+/**
+ * Wrap each export from the endpoint module so that:
+ * - Only keys whose names are uppercase are allowed.
+ * - They are transformed via MethodProxy.
+ *
+ * The extracted parameter names (if any) are passed as `Params`.
+ */
+type ModuleProxy<EndpointModule, Params extends string> = {
+  [Method in keyof EndpointModule]:
+    Method extends string
+      ? Method extends Uppercase<Method>
+        ? MethodProxy<EndpointModule[Method], Method, Params>
+        : TypesafeAPITypeError<"API route methods must be uppercase.">
+      : TypesafeAPITypeError<"API route methods must be strings.">
+};
+
+/**
+ * Convert a method’s export (which should be a TypesafeAPIHandler) into a Fetch interface.
+ * The `Params` type is passed to determine whether the fetch interface should require parameters.
+ */
+type MethodProxy<MethodExport, Method extends string, Params extends string> =
+  MethodExport extends TypesafeAPIHandler<infer Input, infer Output, infer OptionalHeaders, any>
+    ? Fetch_<z.infer<Input>, z.infer<Output>, OptionalHeaders, Params>
+    : TypesafeAPITypeError<"Export is not a typed handler. Use `defineApiRoute`">;
+
+/**
+ * Parse the endpoint string into an object type.
+ *
+ * The following patterns are supported:
+ * - `[...param]` → produces a key of the form `_"param"_`
+ * - `[param]`   → produces a key of the form `_"param"`
+ * - A literal segment → produces a key with that segment name
+ *
+ * Nested segments create nested objects.
+ */
+type EndpointToObject<Endpoint extends string, T> =
+  Endpoint extends `[...${infer Param}]`
+    ? { [K in `_${Param}_`]: T }
+    : Endpoint extends `${infer Head}/${infer Tail}`
+    ? Head extends `[${infer Param}]`
+      ? { [K in `_${Param}`]: EndpointToObject<Tail, T> }
+      : { [K in Head]: EndpointToObject<Tail, T> }
+    : Endpoint extends `[${infer Param}]`
+    ? { [K in `_${Param}`]: T }
+    : { [K in Endpoint]: T };
+
 
 export type MapAny<T, IfAny> = (T extends never ? true : false) extends false ? T : IfAny
 
-type MapString<T, IfString> = T extends string ? string extends T ? IfString : T : T
-
-type IsNever<T> = (T extends never ? true : false) extends true ? true : false  
