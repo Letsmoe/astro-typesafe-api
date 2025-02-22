@@ -91,6 +91,8 @@ export function createApiRoute(
 				);
 			}
 
+			console.error(error);
+
 			return new Response(
 				JSON.stringify({
 					cause: error.cause,
