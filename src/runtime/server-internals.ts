@@ -43,6 +43,15 @@ export function createApiRoute(
 			} catch (error) {
 				throw new InputNotDeserializable(error, url);
 			}
+		} else if (contentType === "application/x-www-form-urlencoded") {
+			try {
+				const text = await request.text();
+				const params = new URLSearchParams(text);
+				input = Object.fromEntries(params.entries());
+				input = paramsToData(input);
+			} catch (error) {
+				throw new InputNotDeserializable(error, url);
+			}
 		} else if (contentType === "application/escodec") {
 			try {
 				input = decode(await request.arrayBuffer());
