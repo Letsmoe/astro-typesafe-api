@@ -1,11 +1,11 @@
 # Astro Typesafe API
 
 <div width="100%" align="center">
-    <img alt="GitHub" src="https://img.shields.io/github/license/Letsmoe/astro-typesafe-api?label=License">
-    <img alt="GitHub issues" src="https://img.shields.io/github/issues/Letsmoe/astro-typesafe-api?label=Issues">
-    <img alt="GitHub contributors" src="https://img.shields.io/github/contributors/Letsmoe/astro-typesafe-api?label=Contributors">
-    <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/Letsmoe/astro-typesafe-api?label=Stars">
-    <img alt="GitHub watchers" src="https://img.shields.io/github/watchers/Letsmoe/astro-typesafe-api?label=Watchers">
+		<img alt="GitHub" src="https://img.shields.io/github/license/Letsmoe/astro-typesafe-api?label=License">
+		<img alt="GitHub issues" src="https://img.shields.io/github/issues/Letsmoe/astro-typesafe-api?label=Issues">
+		<img alt="GitHub contributors" src="https://img.shields.io/github/contributors/Letsmoe/astro-typesafe-api?label=Contributors">
+		<img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/Letsmoe/astro-typesafe-api?label=Stars">
+		<img alt="GitHub watchers" src="https://img.shields.io/github/watchers/Letsmoe/astro-typesafe-api?label=Watchers">
 </div>
 
 
@@ -13,18 +13,18 @@
 <!-- PROJECT LOGO -->
 <br />
 <div align="center">
-  <a href="https://github.com/Letsmoe/astro-typesafe-api">
-    <img src="logo.png" alt="Logo" width="auto" height="400">
-  </a>
+	<a href="https://github.com/Letsmoe/astro-typesafe-api">
+		<img src="logo.png" alt="Logo" width="auto" height="400">
+	</a>
 
 
-  <p align="center">
-    A typesafe API integration for Astro
-    <br />
-    <a href="https://github.com/Letsmoe/astro-typesafe-api/issues">Report Bug</a>
-    ·
-    <a href="https://github.com/Letsmoe/astro-typesafe-api/issues">Request Feature</a>
-  </p>
+	<p align="center">
+		A typesafe API integration for Astro
+		<br />
+		<a href="https://github.com/Letsmoe/astro-typesafe-api/issues">Report Bug</a>
+		·
+		<a href="https://github.com/Letsmoe/astro-typesafe-api/issues">Request Feature</a>
+	</p>
 </div>
 
 >[!NOTE]
@@ -49,15 +49,15 @@ npm install astro-typesafe-api
 Then, apply this integration to your `astro.config.*` file using the `integrations` property:
 
 ```diff lang="js" "astroTypesafeAPI()"
-  // astro.config.mjs
-  import { defineConfig } from 'astro/config';
+	// astro.config.mjs
+	import { defineConfig } from 'astro/config';
 + import astroTypesafeAPI from 'astro-typesafe-api';
 
-  export default defineConfig({
-    // ...
-    integrations: [astroTypesafeAPI()],
-    //             ^^^^^^^^
-  });
+	export default defineConfig({
+		// ...
+		integrations: [astroTypesafeAPI()],
+		//             ^^^^^^^^
+	});
 ```
 
 ## Usage
@@ -203,10 +203,10 @@ import { createClient } from 'astro-typesafe-api/client';
 const customApi = createClient({
 	// Custom global XMLHttpRequest request function
 	callServer: (
-    segments,
-    method,
-    inputOptions
-  ) => {
+		segments,
+		method,
+		inputOptions
+	) => {
 		return new Promise(resolve => {
 			const req = new XMLHttpRequest();
 			req.addEventListener("load", resolve);
@@ -224,10 +224,10 @@ const customApi = createClient({
 
 customApi.hello.GET({ body: undefined }, {
 	callServer: (
-    segments,
-    method,
-    inputOptions
-  ) => {
+		segments,
+		method,
+		inputOptions
+	) => {
 		return fetch(segments.join('/'), {
 			method,
 			...inputOptions,
