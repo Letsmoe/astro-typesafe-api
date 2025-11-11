@@ -12,6 +12,9 @@ export interface Options {
 	openAPIDocumentPath?: string;
 }
 
+const packagePathPrefix = '.astro/astro-typesafe-api';
+const packageFileUrl = (config: AstroConfig, name: string) => new URL(`${packagePathPrefix}/${name}`, config.root);
+
 export default function (_?: Partial<Options>): AstroIntegration {
 	let apiDir: URL;
 	let declarationFileUrl: URL;
@@ -21,11 +24,8 @@ export default function (_?: Partial<Options>): AstroIntegration {
 		hooks: {
 			async "astro:config:setup"({ updateConfig, config, logger }) {
 				apiDir = new URL("pages/api", config.srcDir);
-				declarationFileUrl = new URL(
-					".astro/astro-typesafe-api.d.ts",
-					config.root
-				);
-				routeMapFileUrl = new URL("astro-typesafe-api-caller.ts", config.srcDir)
+				declarationFileUrl = packageFileUrl(config, "api.d.ts");
+				routeMapFileUrl = packageFileUrl(config, "caller.ts");
 
 				updateConfig({
 					vite: {
@@ -138,7 +138,7 @@ function injectEnvDTS(
 	logger: AstroIntegrationLogger,
 	specifier: URL | string
 ) {
-	const envDTsPath = url.fileURLToPath(new URL("env.d.ts", config.srcDir));
+	const envDTsPath = url.fileURLToPath(packageFileUrl(config, "env.d.ts"));
 
 	if (specifier instanceof URL) {
 		specifier = url.fileURLToPath(specifier);
