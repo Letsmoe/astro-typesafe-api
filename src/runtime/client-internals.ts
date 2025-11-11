@@ -150,7 +150,8 @@ export async function callServer<T extends Serializable = undefined>(
 	const body = isGET ? undefined : encode(input);
 	const response = await fetch(url, { ...options, method, body, headers });
 	if (response.ok === false) {
-		throw new ResponseNotOK(response, await response.text());
+		// Leave the original response intact to parse later
+		throw new ResponseNotOK(response, await response.clone().text());
 	}
 	return response;
 }
