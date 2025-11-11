@@ -127,7 +127,7 @@ export interface ClientOptions {
   ) => Promise<Response>);
 
   /**
-   * Set to `null` to disable request post-processing
+   * Set to `null` to disable response processing
    */
   processResponse?: null | (<T>(
     response: Response
