@@ -7,7 +7,7 @@ export type API = Client;
 export type inferOutput<Route extends Fetch_<any, any, any, any>> = Awaited<ReturnType<Route["fetch"]>>
 
 type Client = MapAny<
-    // @ts-ignore this doesn't exist until .astro/astro-typesafe-api.d.ts is generated
+    // @ts-ignore this doesn't exist until .astro/astro-typesafe/api.d.ts is generated
     TypesafeAPI.Client,
     TypesafeAPITypeError<"The types for the client have not been generated yet. Try running `npm exec astro sync`.">
 >

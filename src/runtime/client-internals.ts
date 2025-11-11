@@ -31,7 +31,7 @@ function get(target: typeof proxyTarget, prop: string) {
 			if (contentType === "application/json") {
 				try {
 					return await response.json();
-				} catch(e) {
+				} catch {
 					return null;
 				}
 			}

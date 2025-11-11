@@ -1,7 +1,6 @@
 import type { APIRoute } from "astro";
 import { encode, decode } from "es-codec";
 import {
-	AcceptHeaderMissing,
 	UnsupportedClient,
 	InputNotDeserializable,
 	OutputNotSerializable,
@@ -15,7 +14,7 @@ export function createApiRoute(
 	return async function (ctx) {
 		const { request } = ctx;
 		const { method, headers, url } = request;
-		
+
 		const contentType = headers.get("Content-Type");
 		let accept = headers.get("Accept");
 		// Check if an accept header is present

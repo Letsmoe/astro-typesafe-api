@@ -60,16 +60,6 @@ Then, apply this integration to your `astro.config.*` file using the `integratio
   });
 ```
 
-Then, include these options in your tsconfig:
-```diff lang="json"
-{
-	"compilerOptions": {
-+		"types": [".astro/astro-typesafe-api/*"]
-	},
-+	"include": 
-}
-```
-
 ## Usage
 
 Typed API routes are created using the `defineApiRoute()` function, which are then exported the same way that normal [API routes](https://docs.astro.build/en/core-concepts/endpoints) are in Astro.
