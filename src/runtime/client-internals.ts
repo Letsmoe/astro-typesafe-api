@@ -1,4 +1,4 @@
-import { encode, decode } from "es-codec";
+import { encode, decode, type Serializable } from "es-codec";
 import {
 	MissingHTTPVerb,
 	IncorrectHTTPVerb,
@@ -6,64 +6,108 @@ import {
 	UnknownResponseFormat,
 } from "../errors.ts";
 import { dataToParams } from "./param-codec.ts";
+import type { ClientOptions } from "../types.ts";
 
-export const proxyTarget = { TypesafeAPIEndpoint: new Array<string>() };
-export const proxyHandler: ProxyHandler<typeof proxyTarget> = { get };
+interface ProxyTarget {
+	(): void;
+	TypesafeAPIEndpoint: string[];
+}
+
+export const createProxyTarget = (target: string[] = []): ProxyTarget => {
+	function proxyTarget() {}
+	proxyTarget.TypesafeAPIEndpoint = target;
+
+	return proxyTarget;
+}
+
+export const proxyHandler = (clientOptions: RequiredClientOptions): ProxyHandler<ProxyTarget> => {
+	return {
+		get: get(clientOptions),
+		apply: apply(clientOptions),
+	};
+};
+
+export const defaultClientOptions = {
+    callServer,
+    processResponse
+} satisfies ClientOptions;
 
 interface Options extends RequestInit {
 	params?: Record<string, string>;
 }
 
-function get(target: typeof proxyTarget, prop: string) {
-	if (typeof prop === "symbol")
-		throw new TypeError(
-			`The typed API client cannot be keyed with ${String(prop)}.`
-		);
-	const { TypesafeAPIEndpoint } = target;
-	if (prop === "fetch") {
-		const method = TypesafeAPIEndpoint.pop()!;
-		return async (input: any, options?: Options) => {
-			const response = await callServer(TypesafeAPIEndpoint, method, input, options);
-			const contentType = response.headers.get("Content-Type");
-			if (contentType === "application/escodec") {
-				return decode(await response.arrayBuffer());
-			}
-			if (contentType === "application/json") {
-				try {
-					return await response.json();
-				} catch {
-					return null;
-				}
-			}
-			throw new UnknownResponseFormat(response);
-		};
-	} else if (prop == "fetchRaw") {
-		const method = TypesafeAPIEndpoint.pop()!;
-		return async (input: any, options?: Options) => {
-			const response = await callServer(
-				TypesafeAPIEndpoint,
-				method,
-				input,
-				options
-			);
-			return response;
-		};
-	}
-	return new Proxy(
-		{ TypesafeAPIEndpoint: [...TypesafeAPIEndpoint, prop] },
-		proxyHandler
-	);
+interface InputOptions<T = undefined> extends Omit<Options, 'body'> {
+	body: T;
 }
 
-async function callServer(
+export type RequiredClientOptions = Required<ClientOptions>;
+
+function apply(clientOptions: RequiredClientOptions) {
+	return (async (target, _, [options, context]: [InputOptions?, ClientOptions?]) => {
+		const { TypesafeAPIEndpoint } = target;
+		const method = TypesafeAPIEndpoint.pop()!;
+		const {
+			callServer = clientOptions.callServer,
+			processResponse = clientOptions.processResponse
+		} = context || clientOptions;
+
+		const response = await callServer(
+			TypesafeAPIEndpoint,
+			method,
+			options
+		);
+
+		return await processResponse?.(response) ?? response;
+	}) satisfies ProxyHandler<ProxyTarget>['apply'];
+}
+
+function get(clientOptions: RequiredClientOptions) {
+	return ((target, prop) => {
+		if (typeof prop !== "string")
+			throw new TypeError(
+				`The typed API client cannot be keyed with ${String(prop)}.`
+			);
+		const { TypesafeAPIEndpoint } = target;
+
+		if (prop === "raw") {
+			return async (options?: InputOptions) => apply({
+				callServer: clientOptions.callServer,
+				processResponse: null
+			})(target, undefined, [options]);
+		}
+
+		if (prop === "fetch" /* deprecated */) {
+			return (input: any, options?: Options) => apply(clientOptions)(target, undefined, [{
+				...options,
+				body: input
+			}]);
+		}
+
+		if (prop === "fetchRaw" /* deprecated */) {
+			return async (input: any, options?: Options) => apply({
+				callServer: clientOptions.callServer,
+				processResponse: null
+			})(target, undefined, [{
+				...options,
+				body: input
+			}]);
+		}
+
+		return new Proxy(
+			createProxyTarget([...TypesafeAPIEndpoint, prop]),
+			proxyHandler(clientOptions)
+		);
+	}) satisfies ProxyHandler<ProxyTarget>['apply'];
+}
+
+export async function callServer<T extends Serializable = undefined>(
 	segments: string[],
 	method_: string,
-	input: any,
-	options: Options = {}
+	options: InputOptions<T> = { body: undefined as T }
 ): Promise<Response> {
 	const { origin } = location;
 	let pathname_ = "/api";
-	const { params } = options;
+	const { body: input, params } = options;
 	nextSegment: for (const segment of segments) {
 		if (typeof params === "object") {
 			for (const paramName in params) {
@@ -109,4 +153,22 @@ async function callServer(
 		throw new ResponseNotOK(response, await response.text());
 	}
 	return response;
+}
+
+export async function processResponse(response: Response) {
+	const contentType = response.headers.get("Content-Type");
+
+	if (contentType === "application/escodec") {
+		return decode(await response.arrayBuffer());
+	}
+
+	if (contentType !== "application/json") {
+		throw new UnknownResponseFormat(response);
+	}
+
+	try {
+		return await response.json();
+	} catch {
+		return null;
+	}
 }

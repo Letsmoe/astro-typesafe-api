@@ -70,10 +70,10 @@ import { defineApiRoute } from "astro-typesafe-api/server"
 import { z } from "zod"
 
 export const GET = defineApiRoute({
-	fetch: (name: string) => `Hello, ${name}!`,
+	fetch: ({ user }) => `Hello, ${user}!`,
 	input: z.string(),
 	output: z.string()
-)
+})
 ```
 
 The `defineApiRoute()` function takes an object with a `fetch` method. The `fetch` method will be called when an HTTP request is routed to the current endpoint. Parsing the request for structured data and converting the returned value to a response is handled automatically. Once defined, the API route becomes available for browser-side code to use on the `api` object exported from `astro-typesafe-api/client`:
@@ -83,10 +83,10 @@ The `defineApiRoute()` function takes an object with a `fetch` method. The `fetc
 // src/pages/index.astro
 ---
 <script>
-    import { api } from "astro-typesafe-api/client"
+	import { api } from "astro-typesafe-api/client"
 
-    const message = await api.hello.GET.fetch("Letsmoe")
-    console.log(message) // "Hello, Letsmoe!"
+	const message = await api.hello.GET({ body: "Letsmoe" })
+	console.log(message) // "Hello, Letsmoe!"
 </script>
 ```
 
@@ -115,7 +115,7 @@ export const GET = defineApiRoute({
 	}),
 	output: z.string(),
 	fetch: ({ user }) => `Hello, ${user}!`,
-)
+})
 ```
 
 ### Using middleware locals
@@ -134,7 +134,7 @@ export const POST = defineApiRoute({
 		if (!user.admin) throw new Error("User is not an admin.")
 		...
 	}
-)
+})
 ```
 
 ### Setting cookies
@@ -151,8 +151,9 @@ export const PATCH = defineApiRoute({
 	}),
 	fetch: ({ theme }, { cookies }) => {
 		cookies.set("theme", theme)
+		...
 	}
-)
+})
 ```
 
 ### Adding response headers
@@ -169,12 +170,12 @@ export const GET = defineApiRoute({
 		response.headers.set("Cache-Control", "max-age=3600")
 		return "Hello, world!"
 	}
-)
+})
 ```
 
 ### Adding request headers
 
-The client-side `fetch()` method on the `api` object accepts the same options as the global `fetch` as its second argument. It can be used to set request headers.
+The client-side method on the `api` object accepts the same options as the global `fetch` as its argument. It can be used to set request headers.
 
 ```astro
 ---
@@ -183,12 +184,58 @@ The client-side `fetch()` method on the `api` object accepts the same options as
 <script>
 	import { api } from "astro-typesafe-api/client"
 
-	const message = await api.cached.GET.fetch(undefined, {
+	const message = await api.cached.GET({
+		body: undefined,
 		headers: {
 			"Cache-Control": "no-cache",
 		}
 	})
 </script>
+```
+
+### Create custom API client instances
+
+The client-side library does not force to use the included `fetch`-based client. The `api` instance and request handlers can be customized to use any client and any request post-processor:
+
+```ts
+import { createClient } from 'astro-typesafe-api/client';
+
+const customApi = createClient({
+	// Custom global XMLHttpRequest request function
+	callServer: (
+    segments,
+    method,
+    inputOptions
+  ) => {
+		return new Promise(resolve => {
+			const req = new XMLHttpRequest();
+			req.addEventListener("load", resolve);
+			req.open(method, segments.join('/'));
+			req.send();
+		});
+	},
+
+	// Custom global response processor
+	processResponse: (response) => {
+		return response.json();
+	},
+});
+
+
+customApi.hello.GET({ body: undefined }, {
+	callServer: (
+    segments,
+    method,
+    inputOptions
+  ) => {
+		return fetch(segments.join('/'), {
+			method,
+			...inputOptions,
+		});
+	}
+	// Custom response processor for this call only
+	processResponse: r => r.json(),
+});
 ```
 
 ## Troubleshooting

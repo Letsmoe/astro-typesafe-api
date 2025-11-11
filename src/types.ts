@@ -37,33 +37,102 @@ type ExtractParams<Endpoint extends string> =
 
 /**
  * The base options for the fetch functions.
+ *
+ * @deprecated
  */
 export interface Options<OptionalHeaders extends Record<string, z.ZodSchema>>
   extends Omit<RequestInit, "body" | "method" | "headers"> {
   headers?: (Record<keyof OptionalHeaders, z.infer<OptionalHeaders[keyof OptionalHeaders]>> & HeadersInit);
 }
 
+export interface InputOptions<Input = undefined, OptionalHeaders extends Record<string, z.ZodSchema> = Record<string, z.ZodSchema>>
+  extends Omit<RequestInit, "body" | "method" | "headers"> {
+  headers?: (Record<keyof OptionalHeaders, z.infer<OptionalHeaders[keyof OptionalHeaders]>> & HeadersInit);
+  body: Input;
+  params?: Record<string, string>;
+}
+
 /**
  * Options extended to require a `params` property when the route has parameters.
+ *
+ * @deprecated
  */
 interface OptionsWithParams<OptionalHeaders extends Record<string, z.ZodSchema>, Params extends string>
   extends Options<OptionalHeaders> {
     params: Record<Params, string>;
 }
 
+export interface InputOptionsWithParams<Input = undefined, OptionalHeaders extends Record<string, z.ZodSchema> = Record<string, z.ZodSchema>, Params extends string = string>
+  extends InputOptions<Input, OptionalHeaders> {
+    params: Record<Params, string>;
+}
+
 /**
  * A fetch interface that conditionally requires a `params` property based on the endpoint.
  */
-export type Fetch_<Input, Output, OptionalHeaders extends Record<string, z.ZodSchema>, Params extends string> =
-  IsNever<Params> extends true
+export type Fetch_<
+  Input,
+  Output,
+  OptionalHeaders extends Record<string, z.ZodSchema>,
+  Params extends string,
+  _InputOptions = IsNever<Params> extends true
+    ? InputOptions<Input, OptionalHeaders>
+    : InputOptionsWithParams<Input, OptionalHeaders, Params>,
+  _Options = IsNever<Params> extends true
+    ? Options<OptionalHeaders>
+    : OptionsWithParams<OptionalHeaders, Params>
+> = {
+  (input: _InputOptions, context: ClientOptions & {
+    processResponse: null;
+  }): Promise<Response>;
+
+  <T>(input: _InputOptions, context: ClientOptions & {
+    processResponse: (response: Response) => Promise<T>;
+  }): Promise<T>;
+
+  (input: _InputOptions, context?: ClientOptions): Promise<Output>;
+
+  /**
+   * Shorthand for `(..., { processResponse: null })`
+   *
+   * @param input
+   */
+  raw(input?: _InputOptions): Promise<Response>;
+
+  /**
+   * @deprecated
+   * @param input
+   * @param options
+   */
+  fetch(input: Input, options?: _Options): Promise<Response>;
+  /**
+   * @deprecated
+   * @param input
+   * @param options
+   */
+  fetchRaw(input: Input, options?: _Options): Promise<Response>;
+} & (
+  [undefined] | [any] extends [Input]
     ? {
-        fetch(input: Input, options?: Options<OptionalHeaders>): Promise<Output>;
-        fetchRaw(input: Input, options?: Options<OptionalHeaders>): Promise<Response>;
-      }
-    : {
-        fetch(input: Input, options: OptionsWithParams<OptionalHeaders, Params>): Promise<Output>;
-        fetchRaw(input: Input, options: OptionsWithParams<OptionalHeaders, Params>): Promise<Response>;
-      };
+      (input?: Partial<_InputOptions>, context?: ClientOptions): Promise<Output>;
+    }
+    : {}
+);
+
+export interface ClientOptions {
+  callServer?: ((
+    segments: string[],
+    method: string,
+    inputOptions?: InputOptions
+  ) => Promise<Response>);
+
+  /**
+   * Set to `null` to disable request post-processing
+   */
+  processResponse?: null | (<T>(
+    response: Response
+  ) => Promise<T>);
+}
 
 /*─────────────────────────────────────────────────────────────*
  *                    ROUTER TYPES
@@ -109,9 +178,14 @@ type ModuleProxy<
  * Convert a method’s export (which should be a TypesafeAPIHandler) into a Fetch interface.
  * The `Params` type is passed to determine whether the fetch interface should require parameters.
  */
-type MethodProxy<MethodExport, Method extends string, Params extends string> =
+type MethodProxy<MethodExport, _Method extends string, Params extends string> =
   MethodExport extends TypesafeAPIHandler<infer Input, infer Output, infer OptionalHeaders, any>
-    ? Fetch_<z.infer<Input>, z.infer<Output>, OptionalHeaders, Params>
+    ? Fetch_<
+      Input,
+      Output,
+      OptionalHeaders,
+      Params
+    >
     : TypesafeAPITypeError<"Export is not a typed handler. Use `defineApiRoute`">;
 
 /**
