@@ -7,7 +7,7 @@ import type {
 } from "astro";
 
 export interface Options {
-	generateCallerFactory?: boolean;
+	skipCallerFactory?: boolean;
 	generateOpenAPIDocument?: boolean;
 	openAPIDocumentPath?: string;
 }
@@ -59,7 +59,7 @@ export default function (options?: Partial<Options>): AstroIntegration {
 										declarationFileUrl,
 									);
 
-									if (options?.generateCallerFactory) {
+									if (!options?.skipCallerFactory) {
 										generateRouteMap(
 											filenames,
 											dotAstroPath,
@@ -136,14 +136,15 @@ async function generateRouteMap(
 
 	fs.writeFileSync(routeMapFileUrl, routeMap)
 }
+
 async function generateTypes(
 	filenames: string[],
 	dotAstroPath: string,
 	apiDir: string,
 	declarationFileUrl: URL
 ) {
-	let declaration = `
-type Route<E extends string, M> = import("astro-typesafe-api/types").Route<E, M>
+	let declaration =
+`type Route<E extends string, M> = import("astro-typesafe-api/types").Route<E, M>
 
 declare namespace TypesafeAPI {
 	interface Client extends
@@ -156,8 +157,7 @@ declare namespace TypesafeAPI {
 			return `Route<${JSON.stringify(endpoint)}, typeof import(${JSON.stringify(specifier)})>`;
 		}).join(',\n		')}
 	{}
-}
-	`;
+}`;
 
 	fs.writeFileSync(declarationFileUrl, declaration);
 }
