@@ -21,8 +21,8 @@
     "globby": "^14.0.2"
   },
   "peerDependencies": {
+    "astro": "^5.13",
     "typescript": "^5.0.0",
-    "astro": "^4.16.17",
     "zod": "^3.24.1"
   },
   "bin": {

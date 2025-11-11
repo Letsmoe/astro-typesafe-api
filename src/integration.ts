@@ -5,27 +5,30 @@ import { globby } from "globby";
 import type {
 	AstroIntegration,
 	AstroConfig,
-	AstroIntegrationLogger,
 } from "astro";
+
 export interface Options {
 	generateOpenAPIDocument?: boolean;
 	openAPIDocumentPath?: string;
+	// TODO: let user define api wherever
 }
 
-const packagePathPrefix = '.astro/astro-typesafe-api';
+const packagePathPrefix = '.astro/integrations/astro-typesafe-api';
 const packageFileUrl = (config: AstroConfig, name: string) => new URL(`${packagePathPrefix}/${name}`, config.root);
 
 export default function (_?: Partial<Options>): AstroIntegration {
+	const declarationFile = "api.d.ts";
+	const routeMapFile = "caller.ts";
 	let apiDir: URL;
 	let declarationFileUrl: URL;
 	let routeMapFileUrl: URL;
 	return {
 		name: "astro-typesafe-api",
 		hooks: {
-			async "astro:config:setup"({ updateConfig, config, logger }) {
+			async "astro:config:setup"({ updateConfig, config }) {
 				apiDir = new URL("pages/api", config.srcDir);
-				declarationFileUrl = packageFileUrl(config, "api.d.ts");
-				routeMapFileUrl = packageFileUrl(config, "caller.ts");
+				declarationFileUrl = packageFileUrl(config, declarationFile);
+				routeMapFileUrl = packageFileUrl(config, routeMapFile);
 
 				updateConfig({
 					vite: {
@@ -40,11 +43,6 @@ export default function (_?: Partial<Options>): AstroIntegration {
 									const filenames = await globby(
 										"**/*.{ts,mts}",
 										{ cwd: apiDir }
-									);
-									injectEnvDTS(
-										config,
-										logger,
-										declarationFileUrl
 									);
 									generateTypesAndRouteMap(
 										filenames,
@@ -72,6 +70,15 @@ export default function (_?: Partial<Options>): AstroIntegration {
 					},
 				});
 			},
+			"astro:config:done"({ injectTypes, logger }) {
+				injectTypes({
+					filename: declarationFile,
+					content: ""
+				});
+
+				logger.info("Updated astro types");
+				logger.info("Run 'astro-typesafe-api generate' to create an OpenAPI document.");
+			},
 			"astro:server:setup"({ server }) {
 				server.watcher.on("add", async (path) => {
 					if (
@@ -97,26 +104,27 @@ async function generateTypesAndRouteMap(
 ) {
 	const dotAstroPath = path.dirname(url.fileURLToPath(declarationFileUrl));
 	const apiPath = url.fileURLToPath(apiDir);
+
 	fs.mkdirSync(path.dirname(url.fileURLToPath(declarationFileUrl)), {
 		recursive: true,
 	});
-	let declaration = ``;
-	declaration += `type CreateRouter<Routes> = import("astro-typesafe-api/types").CreateRouter<Routes>\n`;
-	declaration += `\n`;
-	declaration += `declare namespace TypesafeAPI {\n`;
-	declaration += `    interface Client extends CreateRouter<[\n`;
-	for (const filename of filenames) {
-		const endpoint = filename.replace(/(\/index)?\.m?ts$/, "");
-		const specifier = path
-			.relative(dotAstroPath, path.join(apiPath, filename))
-			.replaceAll("\\", "/");
-		declaration += `    `;
-		declaration += `    [${JSON.stringify(
-			endpoint
-		)}, typeof import(${JSON.stringify(specifier)})],\n`;
-	}
-	declaration += `    ]> {}\n`;
-	declaration += `}\n`;
+
+	let declaration = `
+type Route<E extends string, M> = import("astro-typesafe-api/types").Route<E, M>
+
+declare namespace TypesafeAPI {
+	interface Client extends
+		${filenames.map(filename => {
+			const endpoint = filename.replace(/(\/index)?\.m?ts$/, "");
+			const specifier = path
+				.relative(dotAstroPath, path.join(apiPath, filename))
+				.replaceAll("\\", "/");
+
+			return `Route<${JSON.stringify(endpoint)}, typeof import(${JSON.stringify(specifier)})>`;
+		}).join(',\n		')}
+	{}
+}
+	`;
 	fs.writeFileSync(declarationFileUrl, declaration);
 
 
@@ -131,46 +139,4 @@ async function generateTypesAndRouteMap(
 	}).join("\n")}\n})`
 
 	fs.writeFileSync(routeMapFileUrl, routeMap)
-}
-
-function injectEnvDTS(
-	config: AstroConfig,
-	logger: AstroIntegrationLogger,
-	specifier: URL | string
-) {
-	const envDTsPath = url.fileURLToPath(packageFileUrl(config, "env.d.ts"));
-
-	if (specifier instanceof URL) {
-		specifier = url.fileURLToPath(specifier);
-		specifier = path.relative(url.fileURLToPath(config.srcDir), specifier);
-		specifier = specifier.replaceAll("\\", "/");
-	}
-
-	let envDTsContents = fs.readFileSync(envDTsPath, "utf8");
-
-	if (envDTsContents.includes(`/// <reference types='${specifier}' />`)) {
-		return;
-	}
-	if (envDTsContents.includes(`/// <reference types="${specifier}" />`)) {
-		return;
-	}
-
-	const newEnvDTsContents = envDTsContents
-		.replace(
-			`/// <reference types='astro/client' />`,
-			`/// <reference types='astro/client' />\n/// <reference types='${specifier}' />\n`
-		)
-		.replace(
-			`/// <reference types="astro/client" />`,
-			`/// <reference types="astro/client" />\n/// <reference types="${specifier}" />\n`
-		);
-
-	// the odd case where the user changed the reference to astro/client
-	if (newEnvDTsContents === envDTsContents) {
-		return;
-	}
-
-	fs.writeFileSync(envDTsPath, newEnvDTsContents);
-	logger.info("Updated env.d.ts types");
-	logger.info("Run 'astro-typesafe-api generate' to create an OpenAPI document.");
 }

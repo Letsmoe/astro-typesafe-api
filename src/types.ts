@@ -5,12 +5,6 @@ import type { TypesafeAPIHandler } from "./runtime/server.ts";
  *                    UTILITY TYPES
  *─────────────────────────────────────────────────────────────*/
 
-// Convert a union to an intersection.
-type UnionToIntersection<U> =
-  (U extends any ? (k: U) => void : never) extends ((k: infer I) => void)
-    ? I
-    : never;
-
 // Check if a type is `never`.
 type IsNever<T> = [T] extends [never] ? true : false;
 
@@ -76,29 +70,13 @@ export type Fetch_<Input, Output, OptionalHeaders extends Record<string, z.ZodSc
  *─────────────────────────────────────────────────────────────*/
 
 /**
- * Builds a router from a tuple of routes.
- * Each tuple element is of the form `[EndpointString, EndpointModule]`.
- *
- * We map over the tuple to produce a union of route objects and then convert that
- * union to an intersection.
- */
-export type CreateRouter<Routes extends [string, unknown][]> =
-  UnionToIntersection<
-    {
-      [K in keyof Routes]: Routes[K] extends [infer Endpoint extends string, infer Module]
-        ? Route<Endpoint, Module>
-        : never;
-    }[number]
-  >;
-
-/**
  * For a given route, convert its endpoint string and module into an object type.
  *
  * The module is “wrapped” in a proxy that converts each exported uppercase
  * method (which should be a typed API handler) into a fetch interface.
  * The extracted parameters from the endpoint string are passed along.
  */
-type Route<Endpoint extends string, EndpointModule> =
+export type Route<Endpoint extends string, EndpointModule> =
   EndpointToObject<Endpoint, ModuleProxy<EndpointModule, ExtractParams<Endpoint>>>;
 
 /**
@@ -108,8 +86,18 @@ type Route<Endpoint extends string, EndpointModule> =
  *
  * The extracted parameter names (if any) are passed as `Params`.
  */
-type ModuleProxy<EndpointModule, Params extends string> = {
-  [Method in keyof EndpointModule]:
+type ModuleProxy<
+  EndpointModule,
+  Params extends string,
+  ValidMethods extends keyof EndpointModule = {
+    [Method in keyof EndpointModule]: Method extends string
+      ? Method extends Uppercase<Method>
+        ? Method
+      : never
+    : never
+  }[keyof EndpointModule]
+> = {
+  [Method in ValidMethods]:
     Method extends string
       ? Method extends Uppercase<Method>
         ? MethodProxy<EndpointModule[Method], Method, Params>
@@ -149,4 +137,3 @@ type EndpointToObject<Endpoint extends string, T> =
 
 
 export type MapAny<T, IfAny> = (T extends never ? true : false) extends false ? T : IfAny
-
