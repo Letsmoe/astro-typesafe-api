@@ -7,7 +7,7 @@ import {
 import type { OpenAPIMeta } from "./openapi.ts";
 import { createApiRoute } from "./server-internals.ts";
 import type { APIContext, AstroGlobal } from "astro";
-import { z, ZodSchema } from "zod";
+import { z, ZodType } from "zod";
 import type { IncomingHttpHeaders } from "node:http";
 import type { MapAny, TypesafeAPITypeError } from "../types.ts";
 
@@ -49,33 +49,33 @@ export type TypesafeAPIContextWithRequest<OptionalHeaders extends ZodValidatedIn
 }
 
 export type TypesafeAPIHandler<
-	InputSchema extends ZodSchema,
-	OutputSchema extends ZodSchema,
+	Input,
+	Output,
 	OptionalHeaders extends ZodValidatedIncomingHttpHeaders,
-	Middleware extends TypesafeAPIMiddleware<InputSchema>
+	Middleware extends TypesafeAPIMiddleware<Input>
 > = {
-	input?: InputSchema;
-	output?: OutputSchema;
+	input?: ZodType<Input>;
+	output?: ZodType<Output>;
 	meta?: OpenAPIMeta;
 	headers?: OptionalHeaders;
 	fetch(
-		input: z.infer<InputSchema>,
+		input: Input,
 		context: TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders>,
 		transfer: Awaited<ReturnType<Middleware>>
-	): Promise<z.infer<OutputSchema>> | z.infer<OutputSchema>;
+	): Promise<Output> | Output;
 	middleware?: Middleware
 }
 
-export type TypesafeAPIMiddleware<InputSchema extends ZodSchema> = (input: z.infer<InputSchema>, context: TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders>) => Promise<any>;
+export type TypesafeAPIMiddleware<Input> = (input: Input, context: TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders>) => Promise<any>;
 
 export function defineApiRoute<
-	InputSchema extends ZodSchema,
-	OutputSchema extends ZodSchema,
+	Input,
+	Output,
 	OptionalHeaders extends ZodValidatedIncomingHttpHeaders,
-	Middleware extends TypesafeAPIMiddleware<InputSchema>
+	Middleware extends TypesafeAPIMiddleware<Input>
 >(
-	handler: TypesafeAPIHandler<InputSchema, OutputSchema, OptionalHeaders, Middleware>
-): TypesafeAPIHandler<InputSchema, OutputSchema, OptionalHeaders, Middleware> {
+	handler: TypesafeAPIHandler<Input, Output, OptionalHeaders, Middleware>
+): TypesafeAPIHandler<Input, Output, OptionalHeaders, Middleware> {
 	return Object.assign(
 		createApiRoute(async (input: any, context: TypesafeAPIContext) => {
 			let zod: typeof import("zod") | undefined;
@@ -100,7 +100,7 @@ export function defineApiRoute<
 					try {
 						const parsed = schema.parse(value);
 						context.request.headers.set(key, parsed);
-					} catch (error) {
+					} catch {
 						throw new InvalidHeaderEncountered(
 							`Header '${key}' is invalid.`,
 							context.request.url
@@ -251,11 +251,11 @@ export function createCallerFactory(routes: Record<string, any>) {
 	return (astro: AstroGlobal) => {
 		const proxyTarget = { TypesafeAPIEndpoint: new Array<string>() };
 		const proxyHandler: ProxyHandler<typeof proxyTarget> = { get };
-		
+
 		interface Options extends RequestInit {
 			params?: Record<string, string>;
 		}
-	
+
 		function get(target: typeof proxyTarget, prop: string) {
 			if (typeof prop === "symbol")
 				throw new TypeError(
@@ -269,29 +269,29 @@ export function createCallerFactory(routes: Record<string, any>) {
 						if (segment.startsWith("_")) {
 							return `[${segment.slice(1, segment.length)}]`
 						}
-	
+
 						return segment
 					}).join("/")
-	
+
 					const module = routes[path];
-	
+
 					if (!(method in module)) {
 						throw new Error(`'${path}' not callable with method ${method}`)
 					}
-					
-	
+
+
 					const endpoint = module[method] as TypesafeAPIHandler<any,any,any,any>;
-	
+
 					const request = new Request(new URL("http://127.0.0.1"), {
 						headers: new Headers(options?.headers)
 					})
-	
+
 					astro.params = options?.params || {};
-	
-					const ctx: TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders> = Object.assign(astro, {
+
+					const ctx = Object.assign(astro, {
 						request
-					});
-					
+					}) as unknown as TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders>;
+
 					let transfer = null;
 					if ("middleware" in endpoint) {
 						try {
@@ -305,7 +305,7 @@ export function createCallerFactory(routes: Record<string, any>) {
 							throw new Error(`'${path}' middleware threw '${error}', please be aware that some request parameters might not be available in a server-side caller context or that they need to be provided manually.`)
 						}
 					}
-					
+
 					try {
 						return await endpoint.fetch(input, ctx, transfer);
 					} catch(e) {
