@@ -1,16 +1,16 @@
+import type { APIContext, AstroGlobal } from "astro";
+import type { IncomingHttpHeaders } from "node:http";
+import { ZodType, z } from "zod";
+
 import {
-	ZodNotInstalled,
 	InputValidationFailed,
-	OutputValidationFailed,
 	InvalidHeaderEncountered,
+	OutputValidationFailed,
+	ZodNotInstalled,
 } from "../errors.ts";
+import type { MapAny, TypesafeAPITypeError } from "../types.ts";
 import type { OpenAPIMeta } from "./openapi.ts";
 import { createApiRoute } from "./server-internals.ts";
-import type { APIContext, AstroGlobal } from "astro";
-import { z, ZodType } from "zod";
-import type { IncomingHttpHeaders } from "node:http";
-import type { MapAny, TypesafeAPITypeError } from "../types.ts";
-
 
 export type ZodValidatedIncomingHttpHeaders = Record<
 	keyof IncomingHttpHeaders,
@@ -49,13 +49,15 @@ export type TypesafeAPIContextWithRequest<OptionalHeaders extends ZodValidatedIn
 }
 
 export type TypesafeAPIHandler<
+	InputSchema extends ZodType<Input>,
+	OutputSchema extends ZodType<Output>,
+	OptionalHeaders extends ZodValidatedIncomingHttpHeaders,
+	Middleware extends TypesafeAPIMiddleware<Input>,
 	Input,
 	Output,
-	OptionalHeaders extends ZodValidatedIncomingHttpHeaders,
-	Middleware extends TypesafeAPIMiddleware<Input>
 > = {
-	input?: ZodType<Input>;
-	output?: ZodType<Output>;
+	input?: InputSchema;
+	output?: OutputSchema;
 	meta?: OpenAPIMeta;
 	headers?: OptionalHeaders;
 	fetch(
@@ -69,13 +71,15 @@ export type TypesafeAPIHandler<
 export type TypesafeAPIMiddleware<Input> = (input: Input, context: TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders>) => Promise<any>;
 
 export function defineApiRoute<
+	InputSchema extends ZodType<Input>,
+	OutputSchema extends ZodType<Output>,
+	OptionalHeaders extends ZodValidatedIncomingHttpHeaders,
+	Middleware extends TypesafeAPIMiddleware<Input>,
 	Input,
 	Output,
-	OptionalHeaders extends ZodValidatedIncomingHttpHeaders,
-	Middleware extends TypesafeAPIMiddleware<Input>
 >(
-	handler: TypesafeAPIHandler<Input, Output, OptionalHeaders, Middleware>
-): TypesafeAPIHandler<Input, Output, OptionalHeaders, Middleware> {
+	handler: TypesafeAPIHandler<InputSchema, OutputSchema, OptionalHeaders, Middleware, Input, Output>
+): TypesafeAPIHandler<InputSchema, OutputSchema, OptionalHeaders, Middleware, Input, Output> {
 	return Object.assign(
 		createApiRoute(async (input: any, context: TypesafeAPIContext) => {
 			let zod: typeof import("zod") | undefined;
@@ -280,7 +284,7 @@ export function createCallerFactory(routes: Record<string, any>) {
 					}
 
 
-					const endpoint = module[method] as TypesafeAPIHandler<any,any,any,any>;
+					const endpoint = module[method] as TypesafeAPIHandler<any,any,any,any,any,any>;
 
 					const request = new Request(new URL("http://127.0.0.1"), {
 						headers: new Headers(options?.headers)

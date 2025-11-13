@@ -1,4 +1,5 @@
 import type { z } from "zod";
+
 import type { TypesafeAPIHandler } from "./runtime/server.ts";
 
 /*─────────────────────────────────────────────────────────────*
@@ -45,6 +46,9 @@ export interface Options<OptionalHeaders extends Record<string, z.ZodSchema>>
   headers?: (Record<keyof OptionalHeaders, z.infer<OptionalHeaders[keyof OptionalHeaders]>> & HeadersInit);
 }
 
+/**
+ * The base options for the fetch functions.
+ */
 export interface InputOptions<Input = undefined, OptionalHeaders extends Record<string, z.ZodSchema> = Record<string, z.ZodSchema>>
   extends Omit<RequestInit, "body" | "method" | "headers"> {
   headers?: (Record<keyof OptionalHeaders, z.infer<OptionalHeaders[keyof OptionalHeaders]>> & HeadersInit);
@@ -62,6 +66,9 @@ interface OptionsWithParams<OptionalHeaders extends Record<string, z.ZodSchema>,
     params: Record<Params, string>;
 }
 
+/**
+ * Options extended to require a `params` property when the route has parameters.
+ */
 export interface InputOptionsWithParams<Input = undefined, OptionalHeaders extends Record<string, z.ZodSchema> = Record<string, z.ZodSchema>, Params extends string = string>
   extends InputOptions<Input, OptionalHeaders> {
     params: Record<Params, string>;
@@ -97,7 +104,7 @@ export type Fetch_<
    *
    * @param input
    */
-  raw(input?: _InputOptions): Promise<Response>;
+  raw(input: _InputOptions): Promise<Response>;
 
   /**
    * @deprecated
@@ -115,6 +122,12 @@ export type Fetch_<
   [undefined] | [any] extends [Input]
     ? {
       (input?: Partial<_InputOptions>, context?: ClientOptions): Promise<Output>;
+      /**
+       * Shorthand for `(..., { processResponse: null })`
+       *
+       * @param input
+       */
+      raw(input?: _InputOptions): Promise<Response>;
     }
     : {}
 );
@@ -179,7 +192,7 @@ type ModuleProxy<
  * The `Params` type is passed to determine whether the fetch interface should require parameters.
  */
 type MethodProxy<MethodExport, _Method extends string, Params extends string> =
-  MethodExport extends TypesafeAPIHandler<infer Input, infer Output, infer OptionalHeaders, any>
+  MethodExport extends TypesafeAPIHandler<any, any, infer OptionalHeaders, any, infer Input, infer Output>
     ? Fetch_<
       Input,
       Output,
