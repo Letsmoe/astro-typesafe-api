@@ -1,80 +1,45 @@
-import fs from "node:fs";
-import url from "node:url";
-import path from "node:path";
+import type { AstroIntegration } from "astro";
+import { addVirtualImports } from "astro-integration-kit";
 import { globby } from "globby";
-import type {
-	AstroIntegration,
-} from "astro";
+import path from "node:path";
+import url from "node:url";
 
-export interface Options {
-	skipCallerFactory?: boolean;
-	generateOpenAPIDocument?: boolean;
-	openAPIDocumentPath?: string;
-}
+export type Options = {
+	apiDir?: string;
+	// https://github.com/withastro/astro/issues/12689
+	// generateSchema?: boolean | Partial<SchemaGeneratorOptions>;
+};
 
-export default function (options?: Partial<Options>): AstroIntegration {
-	const declarationFile = "api.d.ts";
-	const routeMapFile = "pages/api/_caller.ts";
+const virtualServerName = "astro-typesafe:server";
+const virtualClientName = "astro-typesafe:client";
+const virtualApiName = "astro-typesafe:api";
+const declarationFile = "api.d.ts";
 
+export default function (options?: Options): AstroIntegration {
 	let apiDir: URL;
-	let declarationFileUrl: URL;
-	let routeMapFileUrl: URL;
-
-	let dotAstroPath: string;
 	let apiPath: string;
+	let codegenPath: string;
 
 	return {
 		name: "astro-typesafe-api",
 		hooks: {
-			async "astro:config:setup"({ updateConfig, config }) {
-				apiDir = new URL("pages/api", config.srcDir);
-				declarationFileUrl = new URL(`${dotAstroPath}/${declarationFile}`, config.root);
-				routeMapFileUrl = new URL(routeMapFile, config.srcDir);
-				dotAstroPath = path.dirname(url.fileURLToPath(declarationFileUrl));
+			async "astro:config:setup"(params) {
+				const { updateConfig, config, createCodegenDir } = params;
+				codegenPath = url.fileURLToPath(createCodegenDir());
+
+				apiDir = new URL(options?.apiDir ?? "pages/api", config.srcDir);
 				apiPath = url.fileURLToPath(apiDir);
+
+				const filenames = await globby(
+					"**/*.{ts,mts}",
+					{ cwd: apiDir }
+				);
 
 				updateConfig({
 					vite: {
 						optimizeDeps: {
 							exclude: ["astro-typesafe-api"],
 						},
-						plugins: [
-							{
-								name: "astro-typesafe-api/typegen",
-								enforce: "post",
-								async config() {
-									const filenames = await globby(
-										"**/*.{ts,mts}",
-										{ cwd: apiDir }
-									);
-
-									fs.mkdirSync(dotAstroPath, {
-										recursive: true,
-									});
-
-									generateTypes(
-										filenames,
-										dotAstroPath,
-										apiPath,
-										declarationFileUrl,
-									);
-
-									if (!options?.skipCallerFactory) {
-										generateRouteMap(
-											filenames,
-											dotAstroPath,
-											apiPath,
-											routeMapFileUrl,
-										);
-									}
-								},
-							},
-						],
-					},
-				});
-
-				updateConfig({
-					vite: {
 						define: {
 							"import.meta.env._TRAILING_SLASH": JSON.stringify(
 								config.trailingSlash
@@ -86,78 +51,104 @@ export default function (options?: Partial<Options>): AstroIntegration {
 						},
 					},
 				});
+
+				addVirtualImports(params, {
+          name: "astro-typesafe-api",
+          imports: {
+						[virtualApiName]: `export * from "astro-typesafe-api/server";`,
+						[virtualClientName]: `export * from "astro-typesafe-api/client";`,
+            [virtualServerName]: getRouteMap(
+							filenames,
+							apiPath
+						),
+          }
+        });
 			},
-			"astro:config:done"({ injectTypes, logger }) {
+			async "astro:config:done"({ injectTypes, logger }) {
+				const filenames = await globby(
+					"**/*.{ts,mts}",
+					{ cwd: apiDir }
+				);
+
 				injectTypes({
 					filename: declarationFile,
-					content: ""
+					content: getRouteTypes(
+						filenames,
+						codegenPath,
+						apiPath
+					)
 				});
 
 				logger.info("Updated astro types");
-				logger.info("Run 'astro-typesafe-api generate' to create an OpenAPI document.");
-			},
-			"astro:server:setup"({ server }) {
-				server.watcher.on("add", async (path) => {
-					if (
-						path.includes("pages/api") ||
-						path.includes("pages\\api")
-					) {
-						const filenames = await globby("**/*.{ts,mts}", {
-							cwd: apiDir,
-						});
 
-						generateTypes(
-							filenames,
-							dotAstroPath,
-							apiPath,
-							routeMapFileUrl
-						);
-					}
-				});
+				// TODO: vite fails while running this,
+				// see https://github.com/withastro/astro/issues/12689
+				//
+				// if (options?.generateSchema) {
+				// 	return generateSchema({
+				// 		url: config.site ?? "http://localhost",
+
+				// 		title: `${config.site}`,
+				// 		version: "1.0.0",
+				// 		output: "./openapi.json",
+				// 		...(
+				// 			typeof options.generateSchema === 'boolean'
+				// 				? {}
+				// 				: options.generateSchema
+				// 		)
+				// 	});
+				// } else {
+				logger.info("Run 'astro-typesafe-api generate' to create an OpenAPI document.");
+				// }
 			},
 		},
 	};
 }
 
-async function generateRouteMap(
-	filenames: string[],
-	dotAstroPath: string,
-	apiDir: string,
-	routeMapFileUrl: URL,
-) {
-
-	let routeMap = `import { createCallerFactory } from "astro-typesafe-api/server";\n\nexport const createCaller = createCallerFactory({\n${filenames.map(filename => {
-		const endpoint = filename.replace(/(\/index)?\.m?ts$/, "");
-		const specifier = path
-			.relative(dotAstroPath, path.join(apiDir, filename))
-			.replaceAll("\\", "/");
-		return `    ${JSON.stringify(endpoint)}: await import(${JSON.stringify(specifier)}),`;
-	}).join("\n")}\n})`
-
-	fs.writeFileSync(routeMapFileUrl, routeMap)
-}
-
-async function generateTypes(
-	filenames: string[],
-	dotAstroPath: string,
-	apiDir: string,
-	declarationFileUrl: URL
-) {
-	let declaration =
-`type Route<E extends string, M> = import("astro-typesafe-api/types").Route<E, M>
+function getRouteTypes(filenames: string[], codegenPath: string, apiPath: string): string {
+	return `type Route<E extends string, M> = import("astro-typesafe-api/types").Route<E, M>
 
 declare namespace TypesafeAPI {
 	interface Client extends
 		${filenames.map(filename => {
-			const endpoint = filename.replace(/(\/index)?\.m?ts$/, "");
-			const specifier = path
-				.relative(dotAstroPath, path.join(apiDir, filename))
-				.replaceAll("\\", "/");
+		const endpoint = filename.replace(/(\/index)?\.m?ts$/, "");
 
-			return `Route<${JSON.stringify(endpoint)}, typeof import(${JSON.stringify(specifier)})>`;
-		}).join(',\n		')}
+		// Generate relative path to make it independent of the user's tscofing options
+		const specifier = path
+			.relative(codegenPath, path.join(apiPath, filename))
+			.replaceAll("\\", "/");
+
+		return `Route<${JSON.stringify(endpoint)}, typeof import(${JSON.stringify(specifier)})>`;
+	}).join(",\n		")}
 	{}
-}`;
+}
 
-	fs.writeFileSync(declarationFileUrl, declaration);
+declare module "${virtualServerName}" {
+	/**
+	 * Call your api handlers directly from the server
+	 */
+	export const api: (astro: AstroGlobal) => TypesafeAPI.Client;
+}
+
+declare module "${virtualClientName}" {
+	/**
+	 * Call your api handlers directly from the client
+	 */
+	export const api: TypesafeAPI.Client;
+}
+
+declare module "${virtualApiName}" {
+	export * from "astro-typesafe-api/server";
+}
+`;
+}
+
+function getRouteMap(filenames: string[], apiPath: string) {
+	return `import { createCallerFactory } from "astro-typesafe-api/server";\n\nexport const api = createCallerFactory({\n${
+		filenames.map(filename => {
+			const endpoint = filename.replace(/(\/index)?\.m?ts$/, "");
+			const specifier = [apiPath, filename].join("/").replaceAll("\\", "/");
+			return `	${JSON.stringify(endpoint)}: await import(${JSON.stringify(specifier)}),`;
+		}).join("\n")
+	}\n});`;
 }

@@ -62,11 +62,18 @@ Then, apply this integration to your `astro.config.*` file using the `integratio
 
 ## Usage
 
+This package comes with 3 virtual modules:
+- `astro-typesafe:api` - to define API endpoints;
+- `astro-typesafe:server` - to call API handlers from the server;
+- `astro-typesafe:client` - to call API endpoints from the client.
+
+### Defining a simple route
+
 Typed API routes are created using the `defineApiRoute()` function, which are then exported the same way that normal [API routes](https://docs.astro.build/en/core-concepts/endpoints) are in Astro.
 
 ```ts
 // src/pages/api/hello.ts
-import { defineApiRoute } from "astro-typesafe-api/server"
+import { defineApiRoute } from "astro-typesafe:api"
 import { z } from "zod"
 
 export const GET = defineApiRoute({
@@ -76,14 +83,14 @@ export const GET = defineApiRoute({
 })
 ```
 
-The `defineApiRoute()` function takes an object with a `fetch` method. The `fetch` method will be called when an HTTP request is routed to the current endpoint. Parsing the request for structured data and converting the returned value to a response is handled automatically. Once defined, the API route becomes available for browser-side code to use on the `api` object exported from `astro-typesafe-api/client`:
+The `defineApiRoute()` function takes an object with a `fetch` method. The `fetch` method will be called when an HTTP request is routed to the current endpoint. Parsing the request for structured data and converting the returned value to a response is handled automatically. Once defined, the API route becomes available for browser-side code to use on the `api` object exported from `astro-typesafe:client`:
 
 ```ts
 ---
 // src/pages/index.astro
 ---
 <script>
-	import { api } from "astro-typesafe-api/client"
+	import { api } from "astro-typesafe:client"
 
 	const message = await api.hello.GET({ body: "Letsmoe" })
 	console.log(message) // "Hello, Letsmoe!"
@@ -92,7 +99,24 @@ The `defineApiRoute()` function takes an object with a `fetch` method. The `fetc
 
 When the `fetch` method is called on the browser, the arguments passed to it are serialized as query parameters and a `GET` HTTP request is made to the Astro server. The result is deserialized from the response and returned by the call.
 
-Note that only endpoints within the `src/pages/api` directory are exposed on the `api` object. Additionally, the endpoints must all be typescript files. For example, `src/pages/x.ts` and `src/pages/api/x.js` will **not** be made available to `astro-typesafe-api/client`.
+Note that only endpoints within the `src/pages/api` directory are exposed on the `api` object. Additionally, the endpoints must all be typescript files. For example, `src/pages/x.ts` and `src/pages/api/x.js` will **not** be made available to `astro-typesafe:client`.
+
+### Call from the server
+
+It's also possible to call endpoints directly from the server code and astro components with the same API as on the client:
+
+```astro
+---
+// Note the different module
+import { api } from "astro-typesafe:server"
+
+// api client requires an Astro global object to work from the server
+const message = await api(Astro).hello.GET({ body: "Letsmoe" })
+console.log(message) // "Hello, Letsmoe!"
+---
+```
+
+Note that this usage doesn't invoke actual network requests, but instead calls the `fetch` handler directly.
 
 ### Type-safety
 
@@ -106,7 +130,7 @@ If `defineApiRoute()` is provided with a [zod schema](https://docs.astro.build/e
 
 ```ts
 // src/pages/api/validatedHello.ts
-import { defineApiRoute } from "astro-typesafe-api/server"
+import { defineApiRoute } from "astro-typesafe:api"
 import { z } from "zod"
 
 export const GET = defineApiRoute({
@@ -124,7 +148,7 @@ The `fetch()` method is provided Astro's [APIContext](https://docs.astro.build/e
 
 ```ts
 // src/pages/api/adminOnly.ts
-import { defineApiRoute } from "astro-typesafe-api/server"
+import { defineApiRoute } from "astro-typesafe:api"
 
 export const POST = defineApiRoute({
 	input: z.string(),
@@ -143,7 +167,7 @@ The `APIContext` object also includes a set of utility functions for managing co
 
 ```ts
 // src/pages/api/setPreferences.ts
-import { defineApiRoute } from "astro-typesafe-api/server"
+import { defineApiRoute } from "astro-typesafe:api"
 
 export const PATCH = defineApiRoute({
 	input: z.object({
@@ -162,7 +186,7 @@ The `TypesafeAPIContext` object extends `APIContext` by also including a `respon
 
 ```ts
 // src/pages/api/cached.ts
-import { defineApiRoute } from "astro-typesafe-api/server"
+import { defineApiRoute } from "astro-typesafe:api"
 
 export const GET = defineApiRoute({
 	output: z.string(),
@@ -182,7 +206,7 @@ The client-side method on the `api` object accepts the same options as the globa
 // src/pages/index.astro
 ---
 <script>
-	import { api } from "astro-typesafe-api/client"
+	import { api } from "astro-typesafe:client"
 
 	const message = await api.cached.GET({
 		body: undefined,
@@ -198,7 +222,7 @@ The client-side method on the `api` object accepts the same options as the globa
 The client-side library does not force to use the included `fetch`-based client. The `api` instance and request handlers can be customized to use any client and any request post-processor:
 
 ```ts
-import { createClient } from 'astro-typesafe-api/client';
+import { createClient } from 'astro-typesafe:client';
 
 const customApi = createClient({
 	// Custom global XMLHttpRequest request function
