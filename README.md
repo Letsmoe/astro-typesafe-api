@@ -60,12 +60,42 @@ Then, apply this integration to your `astro.config.*` file using the `integratio
 	});
 ```
 
+### Configuring
+
+- Customize the api endpoints directory (relative to `src`), accepts glob patterns
+```diff lang="js" "astroTypesafeAPI()"
+	// astro.config.mjs
+	import { defineConfig } from 'astro/config';
+	import astroTypesafeAPI from 'astro-typesafe-api';
+
+	export default defineConfig({
+		integrations: [astroTypesafeAPI({
+		// ...
++			apiDir: 'pages/**/api'
+		// ^^^^^^^^
+		})],
+	});
+```
+
 ## Usage
 
 This package comes with 3 virtual modules:
 - `astro-typesafe:api` - to define API endpoints;
 - `astro-typesafe:server` - to call API handlers from the server;
 - `astro-typesafe:client` - to call API endpoints from the client.
+
+<details>
+<summary>
+To know which package to use, simply ask a question: "where am I writing this code?"
+</summary>
+
+The answer will be the name of the module you need.
+
+Are you writing an **API** route in `pages/api`? `astro-typesafe:api`\
+Are you coding some additional logic in **server**-side Astro components? `astro-typesafe:server`\
+Are you focused on **client**-side scripts and components? `astro-typesafe:client`
+
+</details>
 
 ### Defining a simple route
 
@@ -97,9 +127,9 @@ The `defineApiRoute()` function takes an object with a `fetch` method. The `fetc
 </script>
 ```
 
-When the `fetch` method is called on the browser, the arguments passed to it are serialized as query parameters and a `GET` HTTP request is made to the Astro server. The result is deserialized from the response and returned by the call.
+When the method is called in the browser, the arguments passed to it are serialized as query parameters and a `GET` HTTP request is made to the Astro server. The result is deserialized from the response and returned by the call.
 
-Note that only endpoints within the `src/pages/api` directory are exposed on the `api` object. Additionally, the endpoints must all be typescript files. For example, `src/pages/x.ts` and `src/pages/api/x.js` will **not** be made available to `astro-typesafe:client`.
+Note that, by default, only endpoints within the `src/pages/api` directory are exposed on the `api` object. Additionally, the endpoints must all be typescript files. For example, `src/pages/x.ts` and `src/pages/api/x.js` will **not** be made available to `astro-typesafe:client`.
 
 ### Call from the server
 
