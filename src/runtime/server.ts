@@ -1,6 +1,6 @@
 import type { APIContext, AstroGlobal } from "astro";
 import type { IncomingHttpHeaders } from "node:http";
-import { ZodType, z } from "zod";
+import { type ZodType, z } from "zod";
 
 import {
 	InputValidationFailed,

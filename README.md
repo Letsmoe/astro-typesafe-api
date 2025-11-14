@@ -60,23 +60,6 @@ Then, apply this integration to your `astro.config.*` file using the `integratio
 	});
 ```
 
-### Configuring
-
-- Customize the api endpoints directory (relative to `src`), accepts glob patterns
-```diff lang="js" "astroTypesafeAPI()"
-	// astro.config.mjs
-	import { defineConfig } from 'astro/config';
-	import astroTypesafeAPI from 'astro-typesafe-api';
-
-	export default defineConfig({
-		integrations: [astroTypesafeAPI({
-		// ...
-+			apiDir: 'pages/**/api'
-		// ^^^^^^^^
-		})],
-	});
-```
-
 ## Usage
 
 This package comes with 3 virtual modules:

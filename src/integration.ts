@@ -5,7 +5,6 @@ import path from "node:path";
 import url from "node:url";
 
 export type Options = {
-	apiDir?: string;
 	// https://github.com/withastro/astro/issues/12689
 	// generateSchema?: boolean | Partial<SchemaGeneratorOptions>;
 };
@@ -15,7 +14,7 @@ const virtualClientName = "astro-typesafe:client";
 const virtualApiName = "astro-typesafe:api";
 const declarationFile = "api.d.ts";
 
-export default function (options?: Options): AstroIntegration {
+export default function (_?: Options): AstroIntegration {
 	let apiDir: URL;
 	let apiPath: string;
 	let codegenPath: string;
@@ -27,8 +26,9 @@ export default function (options?: Options): AstroIntegration {
 				const { updateConfig, config, createCodegenDir } = params;
 				codegenPath = url.fileURLToPath(createCodegenDir());
 
-				apiDir = new URL(options?.apiDir ?? "pages/api", config.srcDir);
-				apiPath = url.fileURLToPath(apiDir).replaceAll('\\', '/');
+				const apiOption = "pages/api";
+				apiDir = new URL(apiOption, config.srcDir);
+				apiPath = url.fileURLToPath(apiDir).replaceAll("\\", "/");
 
 				const filenames = await globby(
 					`${apiPath}/**/*.{ts,mts}`,
@@ -61,7 +61,7 @@ export default function (options?: Options): AstroIntegration {
 						[virtualClientName]: `export * from "astro-typesafe-api/client";`,
             [virtualServerName]: getRouteMap(
 							filenames,
-							codegenPath,
+							apiPath
 						),
           }
         });
@@ -77,6 +77,7 @@ export default function (options?: Options): AstroIntegration {
 					content: getRouteTypes(
 						filenames,
 						codegenPath,
+						apiPath
 					)
 				});
 
@@ -106,21 +107,21 @@ export default function (options?: Options): AstroIntegration {
 	};
 }
 
-function getRouteTypes(filenames: string[], codegenPath: string): string {
+function getRouteTypes(filenames: string[], codegenPath: string, apiPath: string): string {
 	return `type Route<E extends string, M> = import("astro-typesafe-api/types").Route<E, M>
 
 declare namespace TypesafeAPI {
 	interface Client extends
 		${filenames.map(filename => {
-		const endpoint = filename.replace(/(\/index)?\.m?ts$/, "");
+			const endpoint = getEndpoint(filename, apiPath);
 
-		// Generate relative path to make it independent of the user's tscofing options
-		const specifier = path
-			.relative(codegenPath, filename)
-			.replaceAll("\\", "/");
+			// Generate relative path to make it independent of the user's tscofing options
+			const specifier = path
+				.relative(codegenPath, filename)
+				.replaceAll("\\", "/");
 
-		return `Route<${JSON.stringify(endpoint)}, typeof import(${JSON.stringify(specifier)})>`;
-	}).join(",\n		")}
+			return `Route<${JSON.stringify(endpoint)}, typeof import(${JSON.stringify(specifier)})>`;
+		}).join(",\n		")}
 	{}
 }
 
@@ -144,13 +145,17 @@ declare module "${virtualApiName}" {
 `;
 }
 
-function getRouteMap(filenames: string[], codegenPath: string) {
+function getEndpoint(filename: string, apiPath: string) {
+	return filename
+		.replace(`${apiPath}/`, '')
+		.replace(/(\/index)?\.m?ts$/, "");
+}
+
+function getRouteMap(filenames: string[], apiPath: string) {
 	return `import { createCallerFactory } from "astro-typesafe-api/server";\n\nexport const api = createCallerFactory({\n${
 		filenames.map(filename => {
-			const endpoint = filename.replace(/(\/index)?\.m?ts$/, "");
-			const specifier = path
-				.relative(codegenPath, filename)
-				.replaceAll("\\", "/");
+			const endpoint = getEndpoint(filename, apiPath);
+			const specifier = filename.replaceAll("\\", "/");
 			return `	${JSON.stringify(endpoint)}: await import(${JSON.stringify(specifier)}),`;
 		}).join("\n")
 	}\n});`;

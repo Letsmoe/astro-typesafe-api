@@ -132,11 +132,16 @@ export type Fetch_<
     : {}
 );
 
+export interface ClientInputOptions<T = undefined> extends Omit<RequestInit, 'body'> {
+	params?: Record<string, string>;
+	body: T;
+}
+
 export interface ClientOptions {
   callServer?: ((
     segments: string[],
     method: string,
-    inputOptions?: InputOptions
+    inputOptions?: ClientInputOptions
   ) => Promise<Response>);
 
   /**

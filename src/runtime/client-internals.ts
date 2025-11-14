@@ -6,7 +6,7 @@ import {
 	UnknownResponseFormat,
 } from "../errors.ts";
 import { dataToParams } from "./param-codec.ts";
-import type { ClientOptions } from "../types.ts";
+import type { ClientInputOptions, ClientOptions } from "../types.ts";
 
 interface ProxyTarget {
 	(): void;
@@ -36,14 +36,10 @@ interface Options extends RequestInit {
 	params?: Record<string, string>;
 }
 
-interface InputOptions<T = undefined> extends Omit<Options, 'body'> {
-	body: T;
-}
-
 export type RequiredClientOptions = Required<ClientOptions>;
 
 function apply(clientOptions: RequiredClientOptions) {
-	return (async (target, _, [options, context]: [InputOptions?, ClientOptions?]) => {
+	return (async (target, _, [options, context]: [ClientInputOptions?, ClientOptions?]) => {
 		const { TypesafeAPIEndpoint } = target;
 		const method = TypesafeAPIEndpoint.pop()!;
 		const {
@@ -70,7 +66,7 @@ function get(clientOptions: RequiredClientOptions) {
 		const { TypesafeAPIEndpoint } = target;
 
 		if (prop === "raw") {
-			return async (options?: InputOptions) => apply({
+			return async (options?: ClientInputOptions) => apply({
 				callServer: clientOptions.callServer,
 				processResponse: null
 			})(target, undefined, [options]);
@@ -103,7 +99,7 @@ function get(clientOptions: RequiredClientOptions) {
 export async function callServer<T extends Serializable = undefined>(
 	segments: string[],
 	method_: string,
-	options: InputOptions<T> = { body: undefined as T }
+	options: ClientInputOptions<T> = { body: undefined as T }
 ): Promise<Response> {
 	const { origin } = location;
 	let pathname_ = "/api";
