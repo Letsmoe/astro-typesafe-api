@@ -1,11 +1,11 @@
 # Astro Typesafe API
 
 <div width="100%" align="center">
-		<img alt="GitHub" src="https://img.shields.io/github/license/Letsmoe/astro-typesafe-api?label=License">
-		<img alt="GitHub issues" src="https://img.shields.io/github/issues/Letsmoe/astro-typesafe-api?label=Issues">
-		<img alt="GitHub contributors" src="https://img.shields.io/github/contributors/Letsmoe/astro-typesafe-api?label=Contributors">
-		<img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/Letsmoe/astro-typesafe-api?label=Stars">
-		<img alt="GitHub watchers" src="https://img.shields.io/github/watchers/Letsmoe/astro-typesafe-api?label=Watchers">
+	<img alt="GitHub" src="https://img.shields.io/github/license/Letsmoe/astro-typesafe-api?label=License">
+	<img alt="GitHub issues" src="https://img.shields.io/github/issues/Letsmoe/astro-typesafe-api?label=Issues">
+	<img alt="GitHub contributors" src="https://img.shields.io/github/contributors/Letsmoe/astro-typesafe-api?label=Contributors">
+	<img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/Letsmoe/astro-typesafe-api?label=Stars">
+	<img alt="GitHub watchers" src="https://img.shields.io/github/watchers/Letsmoe/astro-typesafe-api?label=Watchers">
 </div>
 
 
@@ -77,7 +77,7 @@ import { defineApiRoute } from "astro-typesafe:api"
 import { z } from "zod"
 
 export const GET = defineApiRoute({
-	fetch: ({ user }) => `Hello, ${user}!`,
+	fetch: (user: string) => `Hello, ${user}!`,
 	input: z.string(),
 	output: z.string()
 })
@@ -138,7 +138,7 @@ export const GET = defineApiRoute({
 		user: z.string(),
 	}),
 	output: z.string(),
-	fetch: ({ user }) => `Hello, ${user}!`,
+	fetch: (user: string) => `Hello, ${user}!`,
 })
 ```
 
