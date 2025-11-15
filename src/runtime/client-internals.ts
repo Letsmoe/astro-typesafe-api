@@ -13,7 +13,7 @@ interface ProxyTarget {
 	TypesafeAPIEndpoint: string[];
 }
 
-export const createProxyTarget = (target: string[] = []): ProxyTarget => {
+export const createProxyTarget = (target: string[]): ProxyTarget => {
 	function proxyTarget() {}
 	proxyTarget.TypesafeAPIEndpoint = target;
 
@@ -28,8 +28,9 @@ export const proxyHandler = (clientOptions: RequiredClientOptions): ProxyHandler
 };
 
 export const defaultClientOptions = {
-    callServer,
-    processResponse
+	callServer,
+	processResponse,
+	basePath: ['api']
 } satisfies ClientOptions;
 
 interface Options extends RequestInit {
@@ -68,7 +69,8 @@ function get(clientOptions: RequiredClientOptions) {
 		if (prop === "raw") {
 			return async (options?: ClientInputOptions) => apply({
 				callServer: clientOptions.callServer,
-				processResponse: null
+				processResponse: null,
+				basePath: clientOptions.basePath
 			})(target, undefined, [options]);
 		}
 
@@ -82,7 +84,8 @@ function get(clientOptions: RequiredClientOptions) {
 		if (prop === "fetchRaw" /* deprecated */) {
 			return async (input: any, options?: Options) => apply({
 				callServer: clientOptions.callServer,
-				processResponse: null
+				processResponse: null,
+				basePath: clientOptions.basePath
 			})(target, undefined, [{
 				...options,
 				body: input
@@ -102,7 +105,7 @@ export async function callServer<T extends Serializable = undefined>(
 	options: ClientInputOptions<T> = { body: undefined as T }
 ): Promise<Response> {
 	const { origin } = location;
-	let pathname_ = "/api";
+	let pathname_ = "";
 	const { body: input, params } = options;
 	nextSegment: for (const segment of segments) {
 		if (typeof params === "object") {

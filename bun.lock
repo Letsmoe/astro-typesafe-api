@@ -4,12 +4,12 @@
     "": {
       "name": "astro-typesafe-api",
       "dependencies": {
+        "astro-integration-kit": "^0.19.1",
         "es-codec": "^0.5.0",
         "globby": "^14.0.2",
       },
       "devDependencies": {
         "@types/bun": "latest",
-        "astro-integration-kit": "^0.19.1",
         "commander": "^13.0.0",
         "inquirer": "^12.3.2",
         "openapi-types": "^12.1.3",

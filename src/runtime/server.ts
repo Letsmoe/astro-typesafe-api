@@ -11,6 +11,7 @@ import {
 import { createClient } from "./client.ts";
 import type { OpenAPIMeta } from "./openapi.ts";
 import { createApiRoute } from "./server-internals.ts";
+import { defaultClientOptions } from "./client-internals.ts";
 
 export type ZodValidatedIncomingHttpHeaders = Record<
 	keyof IncomingHttpHeaders,
@@ -251,7 +252,7 @@ export class APIError {
  * Create a virtual caller that will call the methods attached to API routes instead of fetching them.
  * @param context The context that will be provided with the request.
  */
-export function createCallerFactory(routes: Record<string, any>) {
+export function createCallerFactory(routes: Record<string, any>, basePath: string[] = defaultClientOptions.basePath) {
 	return (astro: AstroGlobal) => {
 		return createClient({
 			async callServer(segments, method, options) {
@@ -265,7 +266,7 @@ export function createCallerFactory(routes: Record<string, any>) {
 
 				const module = routes[path];
 
-				if (!(method in module)) {
+				if (!module?.[method]) {
 					throw new Error(`'${path}' not callable with method ${method}`)
 				}
 
@@ -307,6 +308,7 @@ export function createCallerFactory(routes: Record<string, any>) {
 				}
 			},
 			processResponse: null,
+			basePath
 		});
 	}
 }

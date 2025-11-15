@@ -1,41 +1,74 @@
-import type { AstroIntegration } from "astro";
+import { existsSync } from "fs";
+import { join, relative } from "path";
+import { fileURLToPath } from "url";
+
+import type { AstroConfig, AstroIntegration, AstroIntegrationLogger } from "astro";
 import { addVirtualImports } from "astro-integration-kit";
+import { writeFile } from "fs/promises";
+import { mkdir } from "fs/promises";
 import { globby } from "globby";
-import path from "node:path";
-import url from "node:url";
+
+import { runGenerateSchema } from "./cli-module";
+import type { SchemaGeneratorOptions } from "./generate-schema";
 
 export type Options = {
-	// https://github.com/withastro/astro/issues/12689
-	// generateSchema?: boolean | Partial<SchemaGeneratorOptions>;
+	/**
+	 * Generate an OpenAPI schema for the endpoints
+	 *
+	 * Pass an object to customize options
+	 */
+	generateSchema?: boolean | Partial<SchemaGeneratorOptions>;
+
+	/**
+	 * Options for generating virtual modules as real `.ts` files instead
+	 *
+	 * Remove the option if generating `.ts` files is not desired
+	 */
+	generateRealVirtualModules?: {
+		/**
+		 * Path for generating .ts from virtual modules,
+	 	 * relative to `src`
+		 */
+		path: string;
+
+		/**
+		 * Prepend a string at the start of a file
+		 *
+		 * @example can be used to prepend a linter directive
+		 * to make the linter skip analyzing these files,
+		 * in case they violate the project's lint rules:
+		 * ```
+		 * head: '// eslint-disable'
+		 * ```
+		 */
+		head?: string;
+	};
 };
 
-const virtualServerName = "astro-typesafe:server";
-const virtualClientName = "astro-typesafe:client";
-const virtualApiName = "astro-typesafe:api";
+interface SelfResolvedEndpoints {
+	entrypoint: string;
+	pattern: string;
+}
+
+const virtual = {
+	server: "astro-typesafe:server",
+	client: "astro-typesafe:client",
+	api: "astro-typesafe:api",
+};
+
 const declarationFile = "api.d.ts";
 
-export default function (_?: Options): AstroIntegration {
-	let apiDir: URL;
-	let apiPath: string;
-	let codegenPath: string;
+export default function (options?: Options): AstroIntegration {
+	let params: Parameters<Exclude<AstroIntegration["hooks"]["astro:config:setup"], undefined>>[0];
+	let endpoints: SelfResolvedEndpoints[] = [];
+	let roots: string[] = [];
 
 	return {
 		name: "astro-typesafe-api",
 		hooks: {
-			async "astro:config:setup"(params) {
-				const { updateConfig, config, createCodegenDir } = params;
-				codegenPath = url.fileURLToPath(createCodegenDir());
-
-				const apiOption = "pages/api";
-				apiDir = new URL(apiOption, config.srcDir);
-				apiPath = url.fileURLToPath(apiDir).replaceAll("\\", "/");
-
-				const filenames = await globby(
-					`${apiPath}/**/*.{ts,mts}`,
-					{ cwd: config.srcDir }
-				);
-
-				params.logger.info(`Found ${filenames.length} routes`);
+			async "astro:config:setup"(_params) {
+				const { updateConfig, config, createCodegenDir, logger } = params = _params;
+				createCodegenDir();
 
 				updateConfig({
 					vite: {
@@ -54,109 +87,227 @@ export default function (_?: Options): AstroIntegration {
 					},
 				});
 
+				const cwd = new URL("pages", params.config.srcDir);
+				// Get all non-ignored endpoints from the pages dir
+				const endpointFiles = await globby("**/[!{_}]*.{ts,mts}", { cwd });
+
+				endpoints = endpointFiles.map(e => ({
+					entrypoint: join(relative(config.srcDir.pathname, cwd.pathname), e),
+					pattern: e.replace(/(?:index)?\.m?ts$/, "")
+				}));
+
+				roots = endpoints
+					.map(r => r.pattern.split("/")[0])
+					.filter((v, i, a) => a.indexOf(v) === i);
+
+				logger.info(`Found ${roots.length} endpoint roots`);
+
+				const serverRouteMap = getServerRouteMap(roots, endpoints);
+
 				addVirtualImports(params, {
           name: "astro-typesafe-api",
-          imports: {
-						[virtualApiName]: `export * from "astro-typesafe-api/server";`,
-						[virtualClientName]: `export * from "astro-typesafe-api/client";`,
-            [virtualServerName]: getRouteMap(
-							filenames,
-							apiPath
-						),
-          }
+          imports: [{
+						id: virtual.api,
+						content: `export * from "astro-typesafe-api/server";`,
+						context: "server"
+					}, {
+						id: virtual.client,
+						content: getClientRouteMap(roots),
+						context: "client",
+					}, {
+						id: virtual.server,
+						content: serverRouteMap,
+						context: "server"
+					}]
         });
-			},
-			async "astro:config:done"({ injectTypes, logger, config }) {
-				const filenames = await globby(
-					`${apiPath}/**/*.{ts,mts}`,
-					{ cwd: config.srcDir }
-				);
 
+				logger.info(`Generated virtual modules`);
+
+				if (options?.generateRealVirtualModules) {
+					const { path, head } = options.generateRealVirtualModules;
+					const modulesDir = join(
+						fileURLToPath(config.srcDir),
+						path
+					);
+					const referencePath = referenceTypes(
+						modulesDir,
+						".astro/types.d.ts",
+						fileURLToPath(config.root)
+					);
+
+					if (!existsSync(modulesDir)) await mkdir(modulesDir);
+
+					const imports = [{
+						id: virtual.api,
+						content: `export * from "astro-typesafe-api/server";`,
+						context: "server"
+					}, {
+						id: virtual.client,
+						content: getClientRouteMap(roots, true),
+						context: "client",
+					}, {
+						id: virtual.server,
+						content: serverRouteMap,
+						context: "server"
+					}]
+
+					for (const module of imports) {
+						await writeFile(
+							join(modulesDir, `${module.id.replace(":", "-")}.ts`),
+							`${
+								head ?? `/* Generated by astro-typesafe-api, do not edit */`
+							}\n${referencePath}\n${
+								module.content
+							}`,
+							{ encoding: "utf8" }
+						);
+					}
+
+					logger.info(`Generated .ts files from virtual modules at src/${path}`);
+				}
+
+				maybeGenerateSchema(config, logger);
+			},
+
+			"astro:config:done"({ injectTypes, logger }) {
 				injectTypes({
 					filename: declarationFile,
-					content: getRouteTypes(
-						filenames,
-						codegenPath,
-						apiPath
-					)
+					content: getRouteTypes(roots, endpoints)
 				});
 
 				logger.info("Updated astro types");
-
-				// TODO: vite fails while running this,
-				// see https://github.com/withastro/astro/issues/12689
-				//
-				// if (options?.generateSchema) {
-				// 	return generateSchema({
-				// 		url: config.site ?? "http://localhost",
-
-				// 		title: `${config.site}`,
-				// 		version: "1.0.0",
-				// 		output: "./openapi.json",
-				// 		...(
-				// 			typeof options.generateSchema === 'boolean'
-				// 				? {}
-				// 				: options.generateSchema
-				// 		)
-				// 	});
-				// } else {
-				logger.info("Run 'astro-typesafe-api generate' to create an OpenAPI document.");
-				// }
 			},
 		},
 	};
+
+
+	function maybeGenerateSchema(config: AstroConfig, logger: AstroIntegrationLogger) {
+		if (options?.generateSchema) {
+			const resolvedOptions = {
+				title: "OpenAPI Schema",
+				version: "1.0.0",
+				output: `${config.publicDir.pathname}/openapi.json`,
+				url: config.site ?? "http://localhost",
+				...(
+					typeof options.generateSchema === "boolean"
+						? {}
+						: options.generateSchema
+				)
+			};
+
+			// TODO: vite fails while running this function directly,
+			// see https://github.com/withastro/astro/issues/12689
+			// so we run it via cli instead
+			runGenerateSchema(resolvedOptions);
+
+			logger.info(`Generated an OpenAPI document at ${resolvedOptions.output}`);
+		} else {
+			logger.info("Run 'astro-typesafe-api generate' to create an OpenAPI document");
+		}
+	}
 }
 
-function getRouteTypes(filenames: string[], codegenPath: string, apiPath: string): string {
-	return `type Route<E extends string, M> = import("astro-typesafe-api/types").Route<E, M>
-
-declare namespace TypesafeAPI {
-	interface Client extends
-		${filenames.map(filename => {
-			const endpoint = getEndpoint(filename, apiPath);
-
-			// Generate relative path to make it independent of the user's tscofing options
-			const specifier = path
-				.relative(codegenPath, filename)
-				.replaceAll("\\", "/");
-
-			return `Route<${JSON.stringify(endpoint)}, typeof import(${JSON.stringify(specifier)})>`;
-		}).join(",\n		")}
-	{}
+function referenceTypes(modulesDir: string, types: string, root: string) {
+	return `/// <reference path="${relative(
+		modulesDir,
+		join(root, types)
+	).replaceAll("\\", "/")}" />`;
 }
 
-declare module "${virtualServerName}" {
+function getRouteTypes(roots: string[], routes: SelfResolvedEndpoints[]): string {
+	const rootedRoutes = getRootedRoutes(roots, routes);
+
+	return `type Route<E extends string, M> = import("astro-typesafe-api/types").Route<E, M>;
+type MappedClient<T> = import("astro-typesafe-api/types").MappedClient<T>;
+
+declare namespace TypesafeAPI {${roots.map(root => `
+	interface ${typename(root)}RawClient extends
+		${rootedRoutes[root]
+			.map(route => {
+				const { endpoint, filename } = resolveRoute(route);
+
+				return `Route<"${endpoint}", typeof import("${filename}")>`;
+			})
+			.join(",\n		")
+		} {}
+	type ${typename(root)}Client = MappedClient<${typename(root)}RawClient>;`).join("\n  ")}
+}
+
+declare module "${virtual.server}" {${roots.map(root => `
 	/**
-	 * Call your api handlers directly from the server
+	 * Call your ${root} handlers directly from the server
 	 */
-	export const api: (astro: AstroGlobal) => TypesafeAPI.Client;
+	export const ${varname(root)}: (astro: AstroGlobal) => TypesafeAPI.${typename(root)}Client;`).join("\n  ")}
 }
 
-declare module "${virtualClientName}" {
+declare module "${virtual.client}" {${roots.map(root => `
 	/**
-	 * Call your api handlers directly from the client
+	 * Call your ${root} endpoints directly from the client
 	 */
-	export const api: TypesafeAPI.Client;
+	export const ${varname(root)}: TypesafeAPI.${typename(root)}Client;`).join("\n  ")}
 }
 
-declare module "${virtualApiName}" {
+declare module "${virtual.api}" {
 	export * from "astro-typesafe-api/server";
 }
 `;
 }
 
-function getEndpoint(filename: string, apiPath: string) {
-	return filename
-		.replace(`${apiPath}/`, '')
-		.replace(/(\/index)?\.m?ts$/, "");
+function getServerRouteMap(roots: string[], routes: SelfResolvedEndpoints[]) {
+	const rootedRoutes = getRootedRoutes(roots, routes);
+
+	return `import { createCallerFactory } from "astro-typesafe-api/server";
+
+${roots.map(root => `export const ${varname(root)} = createCallerFactory({
+${
+	rootedRoutes[root].map(route => {
+		const { endpoint, filename } = resolveRoute(route);
+		return `  "${root}/${endpoint}": await import("${filename}"),`;
+	}).join("\n")
+}
+}, ["${root}"]);
+`).join("\n")}`;
 }
 
-function getRouteMap(filenames: string[], apiPath: string) {
-	return `import { createCallerFactory } from "astro-typesafe-api/server";\n\nexport const api = createCallerFactory({\n${
-		filenames.map(filename => {
-			const endpoint = getEndpoint(filename, apiPath);
-			const specifier = filename.replaceAll("\\", "/");
-			return `	${JSON.stringify(endpoint)}: await import(${JSON.stringify(specifier)}),`;
-		}).join("\n")
-	}\n});`;
+function getClientRouteMap(roots: string[], generic?: boolean): string {
+	return `import { createClient } from "astro-typesafe-api/client";
+${
+	roots.map(root =>
+		`export const ${varname(root)} = createClient${
+			generic ? `<TypesafeAPI.${typename(root)}Client>` : ""
+		}({ basePath: ["${root}"] });`
+	).join("\n  ")
+}
+`;
+}
+
+function resolveRoute(route: SelfResolvedEndpoints) {
+	const endpoint = (
+		route.pattern
+			.split("/")
+			.slice(1)
+			.join("/")
+	);
+	const filename = (
+		(route.entrypoint)
+			.replaceAll("\\", "/")
+	);
+	return { endpoint, filename };
+}
+
+function typename(root: string) {
+	return root === "api" ? "" : varname(root);
+}
+
+function varname(root: string) {
+	return root.replace(/(\[|\.{3}|\])/g, "_");
+}
+
+function getRootedRoutes(roots: string[], routes: SelfResolvedEndpoints[]) {
+	const rootedRoutes: Record<string, SelfResolvedEndpoints[]> = {};
+
+	for (const root of roots) {
+		rootedRoutes[root] = routes.filter(r => r.pattern.startsWith(root));
+	}
+	return rootedRoutes;
 }

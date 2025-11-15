@@ -2,6 +2,11 @@ import type { z } from "zod";
 
 import type { TypesafeAPIHandler } from "./runtime/server.ts";
 
+export type MappedClient<T> = MapAny<
+    T,
+    TypesafeAPITypeError<"The types for the client have not been generated yet. Try running `npm exec astro sync`.">
+>
+
 /*─────────────────────────────────────────────────────────────*
  *                    UTILITY TYPES
  *─────────────────────────────────────────────────────────────*/
@@ -150,6 +155,12 @@ export interface ClientOptions {
   processResponse?: null | (<T>(
     response: Response
   ) => Promise<T>);
+
+  /**
+   * Base path segments, w/o separators
+   * @default [`api`]
+   */
+  basePath?: string[];
 }
 
 /*─────────────────────────────────────────────────────────────*
