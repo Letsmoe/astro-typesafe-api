@@ -311,7 +311,12 @@ function typename(root: string) {
 }
 
 function varname(root: string) {
-	return root.replace(/(\[|\.{3}|\])/g, "_");
+	return camelCase(root.replace(/(\[|\.{3}|\])/g, "_"));
+}
+
+function camelCase(name: string, delim = "-") {
+  const pattern = new RegExp((delim + "([a-z])"), "g");
+  return name.replace(pattern, (_, capture) => capture.toUpperCase());
 }
 
 function getRootedRoutes(roots: string[], routes: SelfResolvedEndpoints[]) {

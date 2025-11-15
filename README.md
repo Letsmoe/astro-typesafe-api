@@ -277,6 +277,43 @@ customApi.hello.GET({ body: undefined }, {
 });
 ```
 
+### Using across multiple directories
+
+It's not necessary to use just the `api` directory for endpoints - they can be defined anywhere in the `src/pages` directory!
+
+`astro-typesafe-api` will create different root objects depending on which sub-directory from `src/pages` the endpoint is from.
+
+For example, this file structure:
+```
+pages/
+- api/
+	- hello.ts
+- docs/
+	- schemas.ts
+```
+will allow to import and use the following endpoints automatically:
+```ts
+// Note the similarity to root folder names
+import { api, docs } from 'astro-typesafe:client';
+
+api.hello.GET()
+docs.schemas.GET()
+```
+
+This flexibility, however, comes with a disadvantage - rouge `.ts` files without a directory will not look nice as endpoints:
+```
+pages/
+- my-cool-endpoint.ts
+```
+```ts
+// Note the automatic pascal-case to camelCase!
+import { myCoolEndpoint } from 'astro-typesafe:client';
+
+// Requires an ugly empty sub-path
+myCoolEndpoint[''].GET()
+//            ^^^^
+```
+
 ## Troubleshooting
 
 For help, check out the `Discussions` tab on the [GitHub repo](https://github.com/letsmoe/astro-typesafe-api/discussions).
