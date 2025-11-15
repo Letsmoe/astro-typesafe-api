@@ -112,7 +112,7 @@ The `defineApiRoute()` function takes an object with a `fetch` method. The `fetc
 
 When the method is called in the browser, the arguments passed to it are serialized as query parameters and a `GET` HTTP request is made to the Astro server. The result is deserialized from the response and returned by the call.
 
-Note that, by default, only endpoints within the `src/pages/api` directory are exposed on the `api` object. Additionally, the endpoints must all be typescript files. For example, `src/pages/x.ts` and `src/pages/api/x.js` will **not** be made available to `astro-typesafe:client`.
+Note that only endpoints within the `src/pages` directory are exposed on the imported objects. Additionally, the endpoints must all be typescript files and not start with `_`. For example, `src/pages/api/_x.ts` and `src/pages/api/x.js` will **not** be made available to `astro-typesafe:client` or `astro-typesafe:server`.
 
 ### Call from the server
 
@@ -129,7 +129,7 @@ console.log(message) // "Hello, Letsmoe!"
 ---
 ```
 
-Note that this usage doesn't invoke actual network requests, but instead calls the `fetch` handler directly.
+Note that this usage doesn't invoke actual network requests, but instead calls the `fetch` handlers directly.
 
 ### Type-safety
 
@@ -230,9 +230,9 @@ The client-side method on the `api` object accepts the same options as the globa
 </script>
 ```
 
-### Create custom API client instances
+### Creating custom API client instances
 
-The client-side library does not force to use the included `fetch`-based client. The `api` instance and request handlers can be customized to use any client and any request post-processor:
+The client-side library allows to replace the included simple `fetch`-based client. The client instance and request handlers can be customized to use any client and any request post-processor:
 
 ```ts
 import { createClient } from 'astro-typesafe:client';
@@ -256,6 +256,8 @@ const customApi = createClient({
 	processResponse: (response) => {
 		return response.json();
 	},
+
+	basePath: ['my', 'custom', 'base-url']
 });
 
 
