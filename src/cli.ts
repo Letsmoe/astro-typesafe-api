@@ -31,10 +31,14 @@ Commander.program
 		"The url of your server",
 		"/"
 	)
+	.option("-i, --input <GLOB>",
+		"The glob pattern to filter input endpoints frmom src/pages",
+		"**/[!{_}]*.{ts,mts}"
+	)
 	.action(async params => {
 		const root = join(process.cwd(), "./src/pages").replaceAll("\\", "/");
 
-		const routes = await globby("**/[!{_}]*.{ts,mts}", { cwd: root, absolute: true });
+		const routes = await globby(params.input, { cwd: root, absolute: true });
 
 		const schema = await generateSchema(routes, root, params);
 
