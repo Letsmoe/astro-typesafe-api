@@ -43,6 +43,14 @@ export type Options = {
 		 */
 		head?: string;
 	};
+
+	/**
+	 * Select which endpoints to process via a glob pattern
+	 *
+	 * Default preset is aligned with Astro: skip `.ts` files that start with `_`
+	 * @default "**\/[!{_}]*.{ts,mts}"
+	 */
+	endpointsGlob?: string;
 };
 
 interface SelfResolvedEndpoints {
@@ -89,7 +97,10 @@ export default function (options?: Options): AstroIntegration {
 
 				const cwd = new URL("pages", params.config.srcDir);
 				// Get all non-ignored endpoints from the pages dir
-				const endpointFiles = await globby("**/[!{_}]*.{ts,mts}", { cwd });
+				const endpointFiles = await globby(
+					options?.endpointsGlob ?? "**/[!{_}]*.{ts,mts}",
+					{ cwd }
+				);
 
 				endpoints = endpointFiles.map(e => ({
 					entrypoint: join(relative(config.srcDir.pathname, cwd.pathname), e),
