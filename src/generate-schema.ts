@@ -1,6 +1,4 @@
-import * as fs from "fs"
 import * as path from "path"
-import { promisify } from "util";
 
 import { OpenAPIV3 } from "openapi-types";
 import { toJSONSchema } from "zod";
@@ -18,10 +16,7 @@ export interface SchemaGeneratorOptions {
 	url: string;
 }
 
-export async function generateSchema(options: SchemaGeneratorOptions) {
-	const root = path.join(process.cwd(), "./src/pages/api");
-	const routes = await recursiveReaddir(root);
-
+export async function generateSchema(routes: string[], root: string, options: SchemaGeneratorOptions) {
 	const openApiDoc: OpenAPIV3.Document = {
 		openapi: "3.0.3",
 		info: {
@@ -36,10 +31,10 @@ export async function generateSchema(options: SchemaGeneratorOptions) {
 	};
 
 	for (const route of routes) {
-		const module = await import(route);
+		const module = await import(/* @vite-ignore */route);
 
 		for (const method of restRequestMethods) {
-			if (!module.hasOwnProperty(method)) {
+			if (!(method in module)) {
 				continue;
 			}
 
@@ -112,15 +107,5 @@ export async function generateSchema(options: SchemaGeneratorOptions) {
 		}
 	}
 
-	fs.writeFileSync(options.output, JSON.stringify(openApiDoc));
-}
-
-async function recursiveReaddir(dir: string): Promise<string[]> {
-  const subdirs = await promisify(fs.readdir)(dir)
-  const files = await Promise.all(subdirs.map(async (subdir) => {
-    const res = path.resolve(dir, subdir)
-    return (await promisify(fs.stat)(res)).isDirectory() ? recursiveReaddir(res) : res;
-  }))
-
-  return files.reduce((a: string[], f: string | string[]) => a.concat(f), [])
+	return openApiDoc;
 }
