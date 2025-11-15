@@ -32,7 +32,7 @@ Commander.program
 		"/"
 	)
 	.option("-i, --input <GLOB>",
-		"The glob pattern to filter input endpoints frmom src/pages",
+		"The glob pattern to filter input endpoints from src/pages",
 		"**/[!{_}]*.{ts,mts}"
 	)
 	.action(async params => {
