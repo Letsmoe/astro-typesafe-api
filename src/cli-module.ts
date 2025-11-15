@@ -9,7 +9,7 @@ export function runGenerateSchema(resolvedOptions: SchemaGeneratorOptions) {
 		resolvedOptions.title
 	}" -v "${
 		resolvedOptions.version
-	} ${resolvedOptions.description ? `-d "${
+	}" ${resolvedOptions.description ? `-d "${
 		resolvedOptions.description
 	}"` : ""} -u "${
 		resolvedOptions.url
