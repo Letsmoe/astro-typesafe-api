@@ -113,8 +113,6 @@ export default function (options?: Options): AstroIntegration {
 
 				logger.info(`Found ${roots.length} endpoint roots`);
 
-				const serverRouteMap = getServerRouteMap(roots, endpoints);
-
 				addVirtualImports(params, {
           name: "astro-typesafe-api",
           imports: [{
@@ -127,7 +125,7 @@ export default function (options?: Options): AstroIntegration {
 						context: "client",
 					}, {
 						id: virtual.server,
-						content: serverRouteMap,
+						content: getServerRouteMap(roots, endpoints),
 						context: "server"
 					}]
         });
@@ -158,7 +156,7 @@ export default function (options?: Options): AstroIntegration {
 						context: "client",
 					}, {
 						id: virtual.server,
-						content: serverRouteMap,
+						content: getServerRouteMap(roots, endpoints, true),
 						context: "server"
 					}]
 
@@ -264,31 +262,29 @@ declare module "${virtual.api}" {
 `;
 }
 
-function getServerRouteMap(roots: string[], routes: SelfResolvedEndpoints[]) {
+function getServerRouteMap(roots: string[], routes: SelfResolvedEndpoints[], generic?: boolean) {
 	const rootedRoutes = getRootedRoutes(roots, routes);
 
 	return `import { createCallerFactory } from "astro-typesafe-api/server";
 
-${roots.map(root => `export const ${varname(root)} = createCallerFactory({
-${
-	rootedRoutes[root].map(route => {
+${roots.map(root => `export const ${varname(root)} = createCallerFactory${
+	generic ? `<TypesafeAPI.${typename(root)}Client>` : ""
+}({
+${rootedRoutes[root].map(route => {
 		const { endpoint, filename } = resolveRoute(route);
 		return `  "${root}/${endpoint}": await import("${filename}"),`;
-	}).join("\n")
-}
+	}).join("\n")}
 }, ["${root}"]);
 `).join("\n")}`;
 }
 
 function getClientRouteMap(roots: string[], generic?: boolean): string {
 	return `import { createClient } from "astro-typesafe-api/client";
-${
-	roots.map(root =>
+${roots.map(root =>
 		`export const ${varname(root)} = createClient${
 			generic ? `<TypesafeAPI.${typename(root)}Client>` : ""
 		}({ basePath: ["${root}"] });`
-	).join("\n  ")
-}
+	).join("\n")}
 `;
 }
 
