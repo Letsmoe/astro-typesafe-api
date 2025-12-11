@@ -235,7 +235,7 @@ The client-side method on the `api` object accepts the same options as the globa
 The client-side library allows to replace the included simple `fetch`-based client. The client instance and request handlers can be customized to use any client and any request post-processor:
 
 ```ts
-import { createClient } from 'astro-typesafe:client';
+import { createClient } from 'astro-typesafe-api/client';
 
 const customApi = createClient({
 	// Custom global XMLHttpRequest request function
@@ -300,7 +300,7 @@ api.hello.GET()
 docs.schemas.GET()
 ```
 
-This flexibility, however, comes with a disadvantage - rouge `.ts` files without a directory will not look nice as endpoints:
+This flexibility, however, comes with a disadvantage - rogue `.ts` files without a directory will not look nice as endpoints:
 ```
 pages/
 - my-cool-endpoint.ts
@@ -313,6 +313,120 @@ import { myCoolEndpoint } from 'astro-typesafe:client';
 myCoolEndpoint[''].GET()
 //            ^^^^
 ```
+
+### Generating an OpenAPI schema
+
+Simply add a `generateSchema` property to the options object in your Astro config.
+
+```diff lang="js" "astroTypesafeAPI()"
+	// astro.config.mjs
+	import { defineConfig } from 'astro/config';
+	import astroTypesafeAPI from 'astro-typesafe-api';
+
+	export default defineConfig({
+		// ...
+		integrations: [astroTypesafeAPI({
++			generateSchema: true
+			// ^^^^^^^^
+		})],
+	});
+```
+
+By passing in an object, it's possible to customize various options of generating the schema:
+
+```diff lang="js" "astroTypesafeAPI()"
+	// astro.config.mjs
+	import { defineConfig } from 'astro/config';
+	import astroTypesafeAPI from 'astro-typesafe-api';
+
+	export default defineConfig({
+		// ...
+		integrations: [astroTypesafeAPI({
+			generateSchema: {
++				title: "My API",
++				version: "1.0.1",
++				description: "My very awesome API",
++				servers: [{ url: "/" }], // Custom server urls
++				virtual: false, // Shouldn't be a virtual route
++				prerender: false, // Shouldn't be prerendered
++				url: '/openapi.json' // Endpoint url to serve the schema from
+			}
+		})],
+	});
+```
+
+### Disabling virtual modules
+
+Virtual modules are only accessible in an Astro context and have several [other limitations](https://docs.astro.build/en/guides/environment-variables/#limitations), hence they may not work in some setups.
+Due to this reason, there's a way to generate the contents of these virtual modules into "real" modules and use them directly instead.\
+To do this, just add a `generateRealVirtualModules` property to the options object in your Astro config.
+
+```diff lang="js" "astroTypesafeAPI()"
+	// astro.config.mjs
+	import { defineConfig } from 'astro/config';
+	import astroTypesafeAPI from 'astro-typesafe-api';
+
+	export default defineConfig({
+		// ...
+		integrations: [astroTypesafeAPI({
++			generateRealVirtualModules: true
+			// ^^^^^^^^
+		})],
+	});
+```
+
+This way, the modules will be put into the `.astro/integrations/astro-typesafe-api` folder by default.
+
+> **Why there?**
+>
+> This library doesn't make any extra assumptions about your project structure, except that it uses Astro (obviously).\
+> So, to avoid potential conflicts, it only uses Astro's designated integrations folder, unless specified otherwise.\
+> This behavior also makes it easy to just copy the generated files where you need them from the integrations folder, either manually or using a script.
+
+By passing in an object, it's possible to customize where the modules should be generated:
+
+```diff lang="js" "astroTypesafeAPI()"
+	// astro.config.mjs
+	import { defineConfig } from 'astro/config';
+	import astroTypesafeAPI from 'astro-typesafe-api';
+
+	export default defineConfig({
+		// ...
+		integrations: [astroTypesafeAPI({
+			generateRealVirtualModules: {
++				// will be put into `src/generated`
++				path: "generated"
++				// will be prepended at the top of all generated files
++				head: "// eslint-disable",
+			}
+		})],
+	});
+```
+
+And even do the same thing for the OpenAPI schema:
+
+```diff lang="js" "astroTypesafeAPI()"
+	// astro.config.mjs
+	import { defineConfig } from 'astro/config';
+	import astroTypesafeAPI from 'astro-typesafe-api';
+
+	export default defineConfig({
+		// ...
+		integrations: [astroTypesafeAPI({
+			generateRealVirtualModules: {
+				path: "generated"
+				head: "// eslint-disable",
++				schemaPath: "pages/schema.json.ts"
+			}
+		})],
+	});
+```
+
+> **Note**
+>
+> When generating real modules, virtual module types will be disabled to avoid ambiguitiy.\
+> To use both generated and virtual modules at the same time, run `astro sync` separately with a parameter that will toggle the virtual modules off in the config before running `dev` or `build` with virtual modules enabled.\
+> Generated modules will not be deleted when disabling the `generateRealVirtualModules` option.
 
 ## Troubleshooting
 

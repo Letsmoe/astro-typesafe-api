@@ -2,14 +2,17 @@
 
 import { join } from "path";
 
+import { build } from "astro";
 import * as Commander from "commander";
 import { writeFile } from "fs/promises";
-import { globby } from "globby";
-
-import { generateSchema } from "./generate-schema";
+import { readFile } from "fs/promises";
 
 Commander.program
 	.command("generate")
+	.description(`
+Do not use this if you're already outputting a schema as a part of your astro build!
+Simply \`cp ./dist/client/openapi.json ./your/desired/folder\` after the build instead!
+	`)
 	.option(
 		"-o, --output <FILE>",
 		"The output file path for the generated content.",
@@ -36,13 +39,25 @@ Commander.program
 		"**/[!{_}]*.{ts,mts}"
 	)
 	.action(async params => {
-		const root = join(process.cwd(), "./src/pages").replaceAll("\\", "/");
+		await build({
+			integrations: [(await import("./integration")).default({
+				endpointsGlob: params.input,
+				generateSchema: {
+					title: params.title,
+					description: params.description,
+					version: params.version,
+					servers: [{ url: params.url ?? "/" }],
+				},
+			})]
+		}, {
+			devOutput: false,
+			teardownCompiler: true,
+		});
 
-		const routes = await globby(params.input, { cwd: root, absolute: true });
-
-		const schema = await generateSchema(routes, root, params);
-
-		await writeFile(params.output, JSON.stringify(schema));
+		await writeFile(
+			params.output,
+			await readFile(join(process.cwd(), 'dist/client/openapi.json'))
+		);
 	});
 
 Commander.program.parse();

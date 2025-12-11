@@ -250,7 +250,6 @@ export class APIError {
 
 /**
  * Create a virtual caller that will call the methods attached to API routes instead of fetching them.
- * @param context The context that will be provided with the request.
  */
 export function createCallerFactory<Client = API>(routes: Record<string, any>, basePath: string[] = defaultClientOptions.basePath) {
 	return (astro: AstroGlobal) => {
