@@ -1,11 +1,11 @@
 # Astro Typesafe API
 
 <div width="100%" align="center">
-    <img alt="GitHub" src="https://img.shields.io/github/license/Letsmoe/astro-typesafe-api?label=License">
-    <img alt="GitHub issues" src="https://img.shields.io/github/issues/Letsmoe/astro-typesafe-api?label=Issues">
-    <img alt="GitHub contributors" src="https://img.shields.io/github/contributors/Letsmoe/astro-typesafe-api?label=Contributors">
-    <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/Letsmoe/astro-typesafe-api?label=Stars">
-    <img alt="GitHub watchers" src="https://img.shields.io/github/watchers/Letsmoe/astro-typesafe-api?label=Watchers">
+	<img alt="GitHub" src="https://img.shields.io/github/license/Letsmoe/astro-typesafe-api?label=License">
+	<img alt="GitHub issues" src="https://img.shields.io/github/issues/Letsmoe/astro-typesafe-api?label=Issues">
+	<img alt="GitHub contributors" src="https://img.shields.io/github/contributors/Letsmoe/astro-typesafe-api?label=Contributors">
+	<img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/Letsmoe/astro-typesafe-api?label=Stars">
+	<img alt="GitHub watchers" src="https://img.shields.io/github/watchers/Letsmoe/astro-typesafe-api?label=Watchers">
 </div>
 
 
@@ -13,18 +13,18 @@
 <!-- PROJECT LOGO -->
 <br />
 <div align="center">
-  <a href="https://github.com/Letsmoe/astro-typesafe-api">
-    <img src="logo.png" alt="Logo" width="auto" height="400">
-  </a>
+	<a href="https://github.com/Letsmoe/astro-typesafe-api">
+		<img src="logo.png" alt="Logo" width="auto" height="400">
+	</a>
 
 
-  <p align="center">
-    A typesafe API integration for Astro
-    <br />
-    <a href="https://github.com/Letsmoe/astro-typesafe-api/issues">Report Bug</a>
-    ·
-    <a href="https://github.com/Letsmoe/astro-typesafe-api/issues">Request Feature</a>
-  </p>
+	<p align="center">
+		A typesafe API integration for Astro
+		<br />
+		<a href="https://github.com/Letsmoe/astro-typesafe-api/issues">Report Bug</a>
+		·
+		<a href="https://github.com/Letsmoe/astro-typesafe-api/issues">Request Feature</a>
+	</p>
 </div>
 
 >[!NOTE]
@@ -49,50 +49,87 @@ npm install astro-typesafe-api
 Then, apply this integration to your `astro.config.*` file using the `integrations` property:
 
 ```diff lang="js" "astroTypesafeAPI()"
-  // astro.config.mjs
-  import { defineConfig } from 'astro/config';
+	// astro.config.mjs
+	import { defineConfig } from 'astro/config';
 + import astroTypesafeAPI from 'astro-typesafe-api';
 
-  export default defineConfig({
-    // ...
-    integrations: [astroTypesafeAPI()],
-    //             ^^^^^^^^
-  });
+	export default defineConfig({
+		// ...
+		integrations: [astroTypesafeAPI()],
+		//             ^^^^^^^^
+	});
 ```
 
 ## Usage
+
+This package comes with 3 virtual modules:
+- `astro-typesafe:api` - to define API endpoints;
+- `astro-typesafe:server` - to call API handlers from the server;
+- `astro-typesafe:client` - to call API endpoints from the client.
+
+<details>
+<summary>
+To know which package to use, simply ask a question: "where am I writing this code?"
+</summary>
+
+The answer will be the name of the module you need.
+
+Are you writing an **API** route in `pages/api`? `astro-typesafe:api`\
+Are you coding some additional logic in **server**-side Astro components? `astro-typesafe:server`\
+Are you focused on **client**-side scripts and components? `astro-typesafe:client`
+
+</details>
+
+### Defining a simple route
 
 Typed API routes are created using the `defineApiRoute()` function, which are then exported the same way that normal [API routes](https://docs.astro.build/en/core-concepts/endpoints) are in Astro.
 
 ```ts
 // src/pages/api/hello.ts
-import { defineApiRoute } from "astro-typesafe-api/server"
+import { defineApiRoute } from "astro-typesafe:api"
 import { z } from "zod"
 
 export const GET = defineApiRoute({
-	fetch: (name: string) => `Hello, ${name}!`,
+	fetch: (user: string) => `Hello, ${user}!`,
 	input: z.string(),
 	output: z.string()
-)
+})
 ```
 
-The `defineApiRoute()` function takes an object with a `fetch` method. The `fetch` method will be called when an HTTP request is routed to the current endpoint. Parsing the request for structured data and converting the returned value to a response is handled automatically. Once defined, the API route becomes available for browser-side code to use on the `api` object exported from `astro-typesafe-api/client`:
+The `defineApiRoute()` function takes an object with a `fetch` method. The `fetch` method will be called when an HTTP request is routed to the current endpoint. Parsing the request for structured data and converting the returned value to a response is handled automatically. Once defined, the API route becomes available for browser-side code to use on the `api` object exported from `astro-typesafe:client`:
 
 ```ts
 ---
 // src/pages/index.astro
 ---
 <script>
-    import { api } from "astro-typesafe-api/client"
+	import { api } from "astro-typesafe:client"
 
-    const message = await api.hello.GET.fetch("Letsmoe")
-    console.log(message) // "Hello, Letsmoe!"
+	const message = await api.hello.GET({ body: "Letsmoe" })
+	console.log(message) // "Hello, Letsmoe!"
 </script>
 ```
 
-When the `fetch` method is called on the browser, the arguments passed to it are serialized as query parameters and a `GET` HTTP request is made to the Astro server. The result is deserialized from the response and returned by the call.
+When the method is called in the browser, the arguments passed to it are serialized as query parameters and a `GET` HTTP request is made to the Astro server. The result is deserialized from the response and returned by the call.
 
-Note that only endpoints within the `src/pages/api` directory are exposed on the `api` object. Additionally, the endpoints must all be typescript files. For example, `src/pages/x.ts` and `src/pages/api/x.js` will **not** be made available to `astro-typesafe-api/client`.
+Note that only endpoints within the `src/pages` directory are exposed on the imported objects. Additionally, the endpoints must all be typescript files and not start with `_`. For example, `src/pages/api/_x.ts` and `src/pages/api/x.js` will **not** be made available to `astro-typesafe:client` or `astro-typesafe:server`.
+
+### Call from the server
+
+It's also possible to call endpoints directly from the server code and astro components with the same API as on the client:
+
+```astro
+---
+// Note the different module
+import { api } from "astro-typesafe:server"
+
+// api client requires an Astro global object to work from the server
+const message = await api(Astro).hello.GET({ body: "Letsmoe" })
+console.log(message) // "Hello, Letsmoe!"
+---
+```
+
+Note that this usage doesn't invoke actual network requests, but instead calls the `fetch` handlers directly.
 
 ### Type-safety
 
@@ -106,7 +143,7 @@ If `defineApiRoute()` is provided with a [zod schema](https://docs.astro.build/e
 
 ```ts
 // src/pages/api/validatedHello.ts
-import { defineApiRoute } from "astro-typesafe-api/server"
+import { defineApiRoute } from "astro-typesafe:api"
 import { z } from "zod"
 
 export const GET = defineApiRoute({
@@ -114,8 +151,8 @@ export const GET = defineApiRoute({
 		user: z.string(),
 	}),
 	output: z.string(),
-	fetch: ({ user }) => `Hello, ${user}!`,
-)
+	fetch: (user: string) => `Hello, ${user}!`,
+})
 ```
 
 ### Using middleware locals
@@ -124,7 +161,7 @@ The `fetch()` method is provided Astro's [APIContext](https://docs.astro.build/e
 
 ```ts
 // src/pages/api/adminOnly.ts
-import { defineApiRoute } from "astro-typesafe-api/server"
+import { defineApiRoute } from "astro-typesafe:api"
 
 export const POST = defineApiRoute({
 	input: z.string(),
@@ -134,7 +171,7 @@ export const POST = defineApiRoute({
 		if (!user.admin) throw new Error("User is not an admin.")
 		...
 	}
-)
+})
 ```
 
 ### Setting cookies
@@ -143,7 +180,7 @@ The `APIContext` object also includes a set of utility functions for managing co
 
 ```ts
 // src/pages/api/setPreferences.ts
-import { defineApiRoute } from "astro-typesafe-api/server"
+import { defineApiRoute } from "astro-typesafe:api"
 
 export const PATCH = defineApiRoute({
 	input: z.object({
@@ -151,8 +188,9 @@ export const PATCH = defineApiRoute({
 	}),
 	fetch: ({ theme }, { cookies }) => {
 		cookies.set("theme", theme)
+		...
 	}
-)
+})
 ```
 
 ### Adding response headers
@@ -161,7 +199,7 @@ The `TypesafeAPIContext` object extends `APIContext` by also including a `respon
 
 ```ts
 // src/pages/api/cached.ts
-import { defineApiRoute } from "astro-typesafe-api/server"
+import { defineApiRoute } from "astro-typesafe:api"
 
 export const GET = defineApiRoute({
 	output: z.string(),
@@ -169,27 +207,226 @@ export const GET = defineApiRoute({
 		response.headers.set("Cache-Control", "max-age=3600")
 		return "Hello, world!"
 	}
-)
+})
 ```
 
 ### Adding request headers
 
-The client-side `fetch()` method on the `api` object accepts the same options as the global `fetch` as its second argument. It can be used to set request headers.
+The client-side method on the `api` object accepts the same options as the global `fetch` as its argument. It can be used to set request headers.
 
 ```astro
 ---
 // src/pages/index.astro
 ---
 <script>
-	import { api } from "astro-typesafe-api/client"
+	import { api } from "astro-typesafe:client"
 
-	const message = await api.cached.GET.fetch(undefined, {
+	const message = await api.cached.GET({
+		body: undefined,
 		headers: {
 			"Cache-Control": "no-cache",
 		}
 	})
 </script>
 ```
+
+### Creating custom API client instances
+
+The client-side library allows to replace the included simple `fetch`-based client. The client instance and request handlers can be customized to use any client and any request post-processor:
+
+```ts
+import { createClient } from 'astro-typesafe-api/client';
+
+const customApi = createClient({
+	// Custom global XMLHttpRequest request function
+	callServer: (
+		segments,
+		method,
+		inputOptions
+	) => {
+		return new Promise(resolve => {
+			const req = new XMLHttpRequest();
+			req.addEventListener("load", resolve);
+			req.open(method, segments.join('/'));
+			req.send();
+		});
+	},
+
+	// Custom global response processor
+	processResponse: (response) => {
+		return response.json();
+	},
+
+	basePath: ['my', 'custom', 'base-url']
+});
+
+
+customApi.hello.GET({ body: undefined }, {
+	callServer: (
+		segments,
+		method,
+		inputOptions
+	) => {
+		return fetch(segments.join('/'), {
+			method,
+			...inputOptions,
+		});
+	}
+	// Custom response processor for this call only
+	processResponse: r => r.json(),
+});
+```
+
+### Using across multiple directories
+
+It's not necessary to use just the `api` directory for endpoints - they can be defined anywhere in the `src/pages` directory!
+
+`astro-typesafe-api` will create different root objects depending on which sub-directory from `src/pages` the endpoint is from.
+
+For example, this file structure:
+```
+pages/
+- api/
+	- hello.ts
+- docs/
+	- schemas.ts
+```
+will allow to import and use the following endpoints automatically:
+```ts
+// Note the similarity to root folder names
+import { api, docs } from 'astro-typesafe:client';
+
+api.hello.GET()
+docs.schemas.GET()
+```
+
+This flexibility, however, comes with a disadvantage - rogue `.ts` files without a directory will not look nice as endpoints:
+```
+pages/
+- my-cool-endpoint.ts
+```
+```ts
+// Note the automatic pascal-case to camelCase!
+import { myCoolEndpoint } from 'astro-typesafe:client';
+
+// Requires an ugly empty sub-path
+myCoolEndpoint[''].GET()
+//            ^^^^
+```
+
+### Generating an OpenAPI schema
+
+Simply add a `generateSchema` property to the options object in your Astro config.
+
+```diff lang="js" "astroTypesafeAPI()"
+	// astro.config.mjs
+	import { defineConfig } from 'astro/config';
+	import astroTypesafeAPI from 'astro-typesafe-api';
+
+	export default defineConfig({
+		// ...
+		integrations: [astroTypesafeAPI({
++			generateSchema: true
+			// ^^^^^^^^
+		})],
+	});
+```
+
+By passing in an object, it's possible to customize various options of generating the schema:
+
+```diff lang="js" "astroTypesafeAPI()"
+	// astro.config.mjs
+	import { defineConfig } from 'astro/config';
+	import astroTypesafeAPI from 'astro-typesafe-api';
+
+	export default defineConfig({
+		// ...
+		integrations: [astroTypesafeAPI({
+			generateSchema: {
++				title: "My API",
++				version: "1.0.1",
++				description: "My very awesome API",
++				servers: [{ url: "/" }], // Custom server urls
++				virtual: false, // Shouldn't be a virtual route
++				prerender: false, // Shouldn't be prerendered
++				url: '/openapi.json' // Endpoint url to serve the schema from
+			}
+		})],
+	});
+```
+
+### Disabling virtual modules
+
+Virtual modules are only accessible in an Astro context and have several [other limitations](https://docs.astro.build/en/guides/environment-variables/#limitations), hence they may not work in some setups.
+Due to this reason, there's a way to generate the contents of these virtual modules into "real" modules and use them directly instead.\
+To do this, just add a `generateRealVirtualModules` property to the options object in your Astro config.
+
+```diff lang="js" "astroTypesafeAPI()"
+	// astro.config.mjs
+	import { defineConfig } from 'astro/config';
+	import astroTypesafeAPI from 'astro-typesafe-api';
+
+	export default defineConfig({
+		// ...
+		integrations: [astroTypesafeAPI({
++			generateRealVirtualModules: true
+			// ^^^^^^^^
+		})],
+	});
+```
+
+This way, the modules will be put into the `.astro/integrations/astro-typesafe-api` folder by default.
+
+> **Why there?**
+>
+> This library doesn't make any extra assumptions about your project structure, except that it uses Astro (obviously).\
+> So, to avoid potential conflicts, it only uses Astro's designated integrations folder, unless specified otherwise.\
+> This behavior also makes it easy to just copy the generated files where you need them from the integrations folder, either manually or using a script.
+
+By passing in an object, it's possible to customize where the modules should be generated:
+
+```diff lang="js" "astroTypesafeAPI()"
+	// astro.config.mjs
+	import { defineConfig } from 'astro/config';
+	import astroTypesafeAPI from 'astro-typesafe-api';
+
+	export default defineConfig({
+		// ...
+		integrations: [astroTypesafeAPI({
+			generateRealVirtualModules: {
++				// will be put into `src/generated`
++				path: "generated"
++				// will be prepended at the top of all generated files
++				head: "// eslint-disable",
+			}
+		})],
+	});
+```
+
+And even do the same thing for the OpenAPI schema:
+
+```diff lang="js" "astroTypesafeAPI()"
+	// astro.config.mjs
+	import { defineConfig } from 'astro/config';
+	import astroTypesafeAPI from 'astro-typesafe-api';
+
+	export default defineConfig({
+		// ...
+		integrations: [astroTypesafeAPI({
+			generateRealVirtualModules: {
+				path: "generated"
+				head: "// eslint-disable",
++				schemaPath: "pages/schema.json.ts"
+			}
+		})],
+	});
+```
+
+> **Note**
+>
+> When generating real modules, virtual module types will be disabled to avoid ambiguitiy.\
+> To use both generated and virtual modules at the same time, run `astro sync` separately with a parameter that will toggle the virtual modules off in the config before running `dev` or `build` with virtual modules enabled.\
+> Generated modules will not be deleted when disabling the `generateRealVirtualModules` option.
 
 ## Troubleshooting
 

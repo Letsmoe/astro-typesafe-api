@@ -1,29 +1,29 @@
 {
   "name": "astro-typesafe-api",
   "type": "module",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "devDependencies": {
     "@types/bun": "latest",
-    "openapi-types": "^12.1.3",
-    "commander": "^13.0.0",
-    "inquirer": "^12.3.2",
-    "zod-to-json-schema": "^3.24.1"
+    "commander": "^13.0.0"
   },
   "exports": {
     ".": "./src/integration.ts",
     "./client": "./src/runtime/client.ts",
     "./server": "./src/runtime/server.ts",
+    "./openapi": "./src/runtime/openapi.ts",
     "./types": "./src/types.ts",
     "./errors": "./src/errors.ts"
   },
   "dependencies": {
+    "astro-integration-kit": "^0.19.1",
     "es-codec": "^0.5.0",
-    "globby": "^14.0.2"
+    "openapi-types": "^12.1.3"
   },
   "peerDependencies": {
+    "astro": "^5.13",
+    "tinyglobby": "^0.2.15",
     "typescript": "^5.0.0",
-    "astro": "^4.16.17",
-    "zod": "^3.24.1"
+    "zod": "^4.1"
   },
   "bin": {
     "astro-typesafe-api": "./src/cli.ts"

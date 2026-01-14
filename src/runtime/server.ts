@@ -1,16 +1,17 @@
+import type { APIContext, AstroGlobal } from "astro";
+import type { IncomingHttpHeaders } from "node:http";
+import { type ZodType, z } from "zod";
+
 import {
-	ZodNotInstalled,
 	InputValidationFailed,
-	OutputValidationFailed,
 	InvalidHeaderEncountered,
+	OutputValidationFailed,
+	ZodNotInstalled,
 } from "../errors.ts";
+import { createClient, type API } from "./client.ts";
 import type { OpenAPIMeta } from "./openapi.ts";
 import { createApiRoute } from "./server-internals.ts";
-import type { APIContext, AstroGlobal } from "astro";
-import { z, ZodSchema } from "zod";
-import type { IncomingHttpHeaders } from "node:http";
-import type { MapAny, TypesafeAPITypeError } from "../types.ts";
-
+import { defaultClientOptions } from "./client-internals.ts";
 
 export type ZodValidatedIncomingHttpHeaders = Record<
 	keyof IncomingHttpHeaders,
@@ -49,33 +50,37 @@ export type TypesafeAPIContextWithRequest<OptionalHeaders extends ZodValidatedIn
 }
 
 export type TypesafeAPIHandler<
-	InputSchema extends ZodSchema,
-	OutputSchema extends ZodSchema,
+	InputSchema extends ZodType<Input>,
+	OutputSchema extends ZodType<Output>,
 	OptionalHeaders extends ZodValidatedIncomingHttpHeaders,
-	Middleware extends TypesafeAPIMiddleware<InputSchema>
+	Middleware extends TypesafeAPIMiddleware<Input>,
+	Input,
+	Output,
 > = {
 	input?: InputSchema;
 	output?: OutputSchema;
 	meta?: OpenAPIMeta;
 	headers?: OptionalHeaders;
 	fetch(
-		input: z.infer<InputSchema>,
+		input: Input,
 		context: TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders>,
 		transfer: Awaited<ReturnType<Middleware>>
-	): Promise<z.infer<OutputSchema>> | z.infer<OutputSchema>;
+	): Promise<Output> | Output;
 	middleware?: Middleware
 }
 
-export type TypesafeAPIMiddleware<InputSchema extends ZodSchema> = (input: z.infer<InputSchema>, context: TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders>) => Promise<any>;
+export type TypesafeAPIMiddleware<Input> = (input: Input, context: TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders>) => Promise<any>;
 
 export function defineApiRoute<
-	InputSchema extends ZodSchema,
-	OutputSchema extends ZodSchema,
+	InputSchema extends ZodType<Input>,
+	OutputSchema extends ZodType<Output>,
 	OptionalHeaders extends ZodValidatedIncomingHttpHeaders,
-	Middleware extends TypesafeAPIMiddleware<InputSchema>
+	Middleware extends TypesafeAPIMiddleware<Input>,
+	Input,
+	Output,
 >(
-	handler: TypesafeAPIHandler<InputSchema, OutputSchema, OptionalHeaders, Middleware>
-): TypesafeAPIHandler<InputSchema, OutputSchema, OptionalHeaders, Middleware> {
+	handler: TypesafeAPIHandler<InputSchema, OutputSchema, OptionalHeaders, Middleware, Input, Output>
+): TypesafeAPIHandler<InputSchema, OutputSchema, OptionalHeaders, Middleware, Input, Output> {
 	return Object.assign(
 		createApiRoute(async (input: any, context: TypesafeAPIContext) => {
 			let zod: typeof import("zod") | undefined;
@@ -99,8 +104,8 @@ export function defineApiRoute<
 
 					try {
 						const parsed = schema.parse(value);
-						context.request.headers.set(key, parsed);
-					} catch (error) {
+						context.request.headers.set(key, String(parsed));
+					} catch {
 						throw new InvalidHeaderEncountered(
 							`Header '${key}' is invalid.`,
 							context.request.url
@@ -245,89 +250,64 @@ export class APIError {
 
 /**
  * Create a virtual caller that will call the methods attached to API routes instead of fetching them.
- * @param context The context that will be provided with the request.
  */
-export function createCallerFactory(routes: Record<string, any>) {
+export function createCallerFactory<Client = API>(routes: Record<string, any>, basePath: string[] = defaultClientOptions.basePath) {
 	return (astro: AstroGlobal) => {
-		const proxyTarget = { TypesafeAPIEndpoint: new Array<string>() };
-		const proxyHandler: ProxyHandler<typeof proxyTarget> = { get };
-		
-		interface Options extends RequestInit {
-			params?: Record<string, string>;
-		}
-	
-		function get(target: typeof proxyTarget, prop: string) {
-			if (typeof prop === "symbol")
-				throw new TypeError(
-					`The typed API client cannot be keyed with ${String(prop)}.`
-				);
-			const { TypesafeAPIEndpoint } = target;
-			if (prop === "fetch") {
-				const method = TypesafeAPIEndpoint.pop()!;
-				return async (input: any, options?: Options) => {
-					let path = TypesafeAPIEndpoint.map(segment => {
-						if (segment.startsWith("_")) {
-							return `[${segment.slice(1, segment.length)}]`
-						}
-	
-						return segment
-					}).join("/")
-	
-					const module = routes[path];
-	
-					if (!(method in module)) {
-						throw new Error(`'${path}' not callable with method ${method}`)
+		return createClient<Client>({
+			async callServer(segments, method, options) {
+				const path = segments.map(segment => {
+					if (segment.startsWith("_")) {
+						return `[${segment.slice(1, segment.length)}]`
 					}
-					
-	
-					const endpoint = module[method] as TypesafeAPIHandler<any,any,any,any>;
-	
-					const request = new Request(new URL("http://127.0.0.1"), {
-						headers: new Headers(options?.headers)
-					})
-	
-					astro.params = options?.params || {};
-	
-					const ctx: TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders> = Object.assign(astro, {
-						request
-					});
-					
-					let transfer = null;
-					if ("middleware" in endpoint) {
-						try {
-							transfer = await endpoint.middleware(input, ctx)
-						} catch(e) {
-							let error: string = e as string;
-							if (e instanceof APIError) {
-								error = e.message
-							}
 
-							throw new Error(`'${path}' middleware threw '${error}', please be aware that some request parameters might not be available in a server-side caller context or that they need to be provided manually.`)
-						}
-					}
-					
+					return segment
+				}).join("/")
+
+				const module = routes[path];
+
+				if (!module?.[method]) {
+					throw new Error(`'${path}' not callable with method ${method}`)
+				}
+
+				const endpoint = module[method] as TypesafeAPIHandler<any,any,any,any,any,any>;
+
+				const request = new Request(new URL("http://127.0.0.1"), {
+					headers: new Headers(options?.headers)
+				})
+
+				astro.params = options?.params || {};
+
+				const ctx = Object.assign(astro, {
+					request
+				}) as unknown as TypesafeAPIContextWithRequest<ZodValidatedIncomingHttpHeaders>;
+
+				let transfer = null;
+				if ("middleware" in endpoint) {
 					try {
-						return await endpoint.fetch(input, ctx, transfer);
+						transfer = await endpoint.middleware(options?.body, ctx)
 					} catch(e) {
 						let error: string = e as string;
 						if (e instanceof APIError) {
 							error = e.message
 						}
 
-						throw new Error(`'${path}' endpoint threw '${error}', please be aware that some request parameters might not be available in a server-side caller context or that they need to be provided manually.`)
+						throw new Error(`'${path}' middleware threw '${error}', please be aware that some request parameters might not be available in a server-side caller context or that they need to be provided manually.`)
 					}
-				};
-			}
-			return new Proxy(
-				{ TypesafeAPIEndpoint: [...TypesafeAPIEndpoint, prop] },
-				proxyHandler
-			);
-		}
+				}
 
-		return new Proxy(proxyTarget, proxyHandler) as unknown as MapAny<
-				// @ts-ignore this doesn't exist until .astro/astro-typesafe-api.d.ts is generated
-				TypesafeAPI.Client,
-				TypesafeAPITypeError<"The types for the client have not been generated yet. Try running `npm exec astro sync`.">
-		>
+				try {
+					return await endpoint.fetch(options?.body, ctx, transfer);
+				} catch(e) {
+					let error: string = e as string;
+					if (e instanceof APIError) {
+						error = e.message
+					}
+
+					throw new Error(`'${path}' endpoint threw '${error}', please be aware that some request parameters might not be available in a server-side caller context or that they need to be provided manually.`)
+				}
+			},
+			processResponse: null,
+			basePath
+		});
 	}
 }
